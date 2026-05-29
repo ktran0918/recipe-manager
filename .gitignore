@@ -1,0 +1,68 @@
+# Claude Code local settings (personal permission overrides — not team config)
+.claude/settings.local.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.eclipse/
+.settings/
+.classpath
+.project
+
+# Java / Maven (services/api/)
+target/
+*.class
+*.jar
+*.war
+*.ear
+!**/test/**/*.jar
+.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+hs_err_pid*
+
+# Python (services/scraper/, services/ai/, services/worker/)
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg
+pip-wheel-metadata/
+.coverage
+htmlcov/
+.tox/
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Secrets / credentials (never commit)
+*.pem
+*.key
+*.p12
+*.jks
+credentials.json
+service-account*.json
