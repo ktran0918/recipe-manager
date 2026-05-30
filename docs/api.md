@@ -140,6 +140,129 @@ GraphQL: `http://localhost:8000/graphql`
 
 ---
 
+## Ingredient Substitutions
+
+Substitutions are scoped to a specific recipe — "use Greek yogurt instead of sour cream *in this dip*" is independent of what that swap means in another dish. Substitutions can be added manually or saved automatically from AI suggestions (Phase 6).
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/recipes/:id/ingredients/:ingredientId/substitutes` | List saved substitutes for an ingredient in a recipe |
+| `POST` | `/recipes/:id/ingredients/:ingredientId/substitutes` | Save a substitution for an ingredient in a recipe |
+| `DELETE` | `/recipes/:id/ingredients/:ingredientId/substitutes/:substituteIngredientId` | Remove a saved substitution |
+
+**GET `/recipes/:id/ingredients/:ingredientId/substitutes?in_pantry=true`**
+
+`in_pantry=true` filters to substitutes where the substitute has sufficient quantity in the household's pantry.
+
+```json
+{
+  "original_ingredient": { "id": "uuid", "name": "sour cream" },
+  "substitutes": [
+    {
+      "substitute_ingredient": { "id": "uuid", "name": "Greek yogurt" },
+      "conversion_ratio": 1.0,
+      "notes": "Use in equal parts. Slightly tangier; works well in dips and sauces.",
+      "source": "ai",
+      "in_pantry": true
+    }
+  ]
+}
+```
+
+**POST `/recipes/:id/ingredients/:ingredientId/substitutes`**
+```json
+// Request
+{
+  "substitute_ingredient_id": "uuid",
+  "conversion_ratio": 1.0,
+  "notes": "Use in equal parts."
+}
+
+// Response 201
+{ /* substitution object */ }
+```
+
+---
+
+## Cook Mode
+
+A distraction-free view shown when a user selects a recipe to cook. Strips non-essential fields (description, tags, image, source URL, occasions, cuisine) and surfaces only: cook time, scaled ingredients, original directions, serving size, and nutrition. Selection is stored per-user in Redis so it persists across devices.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/recipes/:id/select` | Select a recipe for cooking |
+| `DELETE` | `/recipes/selection` | Deselect (un-choose) the current recipe |
+| `GET` | `/recipes/selection` | Get the currently selected recipe |
+| `GET` | `/recipes/:id/cook-mode` | Condensed cook view for a recipe |
+
+**POST `/recipes/:id/select`**
+
+Stores selection in Redis (`cook:selection:{user_id}`, 24h TTL). Replaces any previous selection. Returns the cook-mode view immediately.
+```json
+// Response 200
+{
+  "recipe_id": "uuid",
+  "selected_at": "2026-01-15T10:00:00Z",
+  "cook_mode": { /* same shape as GET /recipes/:id/cook-mode */ }
+}
+```
+
+**DELETE `/recipes/selection`**
+```
+Response: 204 No Content
+```
+
+**GET `/recipes/selection`**
+```json
+// Recipe selected
+{ "recipe_id": "uuid", "selected_at": "2026-01-15T10:00:00Z" }
+
+// Nothing selected
+{ "recipe_id": null }
+```
+
+**GET `/recipes/:id/cook-mode?servings=2`**
+
+`servings` scales all ingredient quantities proportionally. Defaults to recipe's default serving size. Directions are the original recipe steps — not rewritten.
+```json
+{
+  "recipe_id": "uuid",
+  "title": "Classic Margherita Pizza",
+  "prep_time_minutes": 15,
+  "cook_time_minutes": 25,
+  "servings": 2,
+  "ingredients": [
+    {
+      "name": "all-purpose flour",
+      "quantity": 250,
+      "unit": "g",
+      "preparation": "sifted",
+      "optional": false
+    }
+  ],
+  "directions": [
+    "Mix flour, salt, and yeast in a large bowl.",
+    "Add olive oil and warm water; knead 10 minutes until smooth.",
+    "Let rise 1 hour. Shape, top, and bake at 250°C for 10–12 minutes."
+  ],
+  "nutrition": {
+    "calories": 320,
+    "protein_g": 12,
+    "carbs_g": 48,
+    "fat_g": 8,
+    "fiber_g": 2,
+    "sodium_mg": 580,
+    "serving_size_label": "1 slice (approx. 200g)",
+    "per_serving": true
+  },
+  "source_url": "https://www.seriouseats.com/the-best-pizza-dough-recipe"
+}
+```
+
+`nutrition` is `null` if no nutrition data was extracted for the recipe. `source_url` is `null` for manually entered recipes.
+
+---
+
 ## Pantry
 
 | Method | Endpoint | Description |

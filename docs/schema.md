@@ -90,6 +90,39 @@ CREATE TABLE recipe_steps (
     instruction TEXT NOT NULL,
     PRIMARY KEY (recipe_id, step_number)  -- handled as constraint
 );
+
+-- Ingredient substitutions scoped to a specific recipe
+-- A row says: "in this recipe, you can replace original with substitute at conversion_ratio"
+-- conversion_ratio: substitute_quantity = original_quantity × ratio
+-- e.g. sour cream → Greek yogurt in a dip recipe: ratio 1.0 (equal parts)
+--      butter → coconut oil in a cake recipe: ratio 0.75 (¾ cup oil per 1 cup butter)
+CREATE TABLE recipe_ingredient_substitutions (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipe_id                   UUID NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    original_ingredient_id      UUID NOT NULL REFERENCES ingredients(id),
+    substitute_ingredient_id    UUID NOT NULL REFERENCES ingredients(id),
+    conversion_ratio            NUMERIC(6,3) NOT NULL DEFAULT 1.000,
+    notes                       TEXT,
+    source                      TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'ai', 'recipe')),
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (recipe_id, original_ingredient_id, substitute_ingredient_id),
+    CHECK (original_ingredient_id != substitute_ingredient_id)
+);
+
+-- Per-recipe nutrition data (one row per recipe, per serving)
+-- Populated during scraping if the source page includes nutrition info; null columns if not available
+CREATE TABLE recipe_nutrition (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipe_id           UUID NOT NULL UNIQUE REFERENCES recipes(id) ON DELETE CASCADE,
+    serving_size_label  TEXT,               -- e.g. '1 slice (200g)', '1 cup'
+    calories            NUMERIC(8,1),
+    protein_g           NUMERIC(8,2),
+    carbs_g             NUMERIC(8,2),
+    fat_g               NUMERIC(8,2),
+    fiber_g             NUMERIC(8,2),
+    sodium_mg           NUMERIC(8,1),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 ```
 
 ---
@@ -242,6 +275,7 @@ CREATE TABLE scrape_jobs (
 | `cost:{ingredient_id}:{unit}` | String | 6h | Cache ingredient cost lookups |
 | `job:status:{job_id}` | Hash | 1h | Scrape job status for polling fallback |
 | `pantry:snapshot:{household_id}` | Hash | 5m | Short-lived pantry state cache |
+| `cook:selection:{user_id}` | Hash | 24h | Currently selected recipe for cook mode (`recipe_id`, `selected_at`); cleared on deselect or expiry |
 
 ---
 

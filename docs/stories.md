@@ -157,6 +157,34 @@ Verify the complete Phase 1 definition of done with a single runnable test suite
 
 ---
 
+### EP1-10: Recipe selection state
+**Depends on:** EP1-08 | **Parallel with:** nothing
+
+Redis-backed per-user cook selection. No DB writes — Redis only.
+
+**AC:**
+- [ ] `POST /recipes/:id/select`: validates recipe belongs to caller's household; writes `cook:selection:{user_id}` hash (`recipe_id`, `selected_at`) to Redis with 24h TTL; replaces any existing selection; returns the cook-mode view (calls EP1-11 logic internally)
+- [ ] `DELETE /recipes/selection`: deletes `cook:selection:{user_id}` from Redis; 204 if nothing selected (idempotent)
+- [ ] `GET /recipes/selection`: returns `{recipe_id, selected_at}` if key exists, `{recipe_id: null}` otherwise
+- [ ] Unit tests: select → Redis key written; deselect → key deleted; get with no key → null returned
+- [ ] Integration test: select recipe A → get selection returns A; select recipe B → selection is B (old key overwritten); deselect → null
+
+---
+
+### EP1-11: Cook mode view endpoint
+**Depends on:** EP1-08, EP1-03 (recipe_nutrition migration must exist even if empty) | **Parallel with:** EP1-10
+
+Returns a condensed recipe view with only essential fields. Nutrition is null until Phase 2 populates it.
+
+**AC:**
+- [ ] `GET /recipes/:id/cook-mode?servings=N`: loads recipe + ingredients + steps + nutrition (if present); scales all ingredient quantities by `requestedServings / recipe.servings`; 404 if recipe not in caller's household
+- [ ] Response shape matches `docs/api.md`: `recipe_id`, `title`, `prep_time_minutes`, `cook_time_minutes`, `servings`, `ingredients[]`, `directions[]` (original step instructions in order), `nutrition` (null if no row), `source_url` (null for manual recipes)
+- [ ] Non-essential fields (`description`, `image_url`, `occasions`, `cuisine`, `diet_tags`, `complexity`) are excluded from the response
+- [ ] `servings` param defaults to recipe's default servings if omitted
+- [ ] MockMvc integration tests: correct fields returned; excluded fields absent; ingredient quantities scaled correctly; nutrition null when no row exists; source_url present for scraped recipe, null for manual
+
+---
+
 ## Phase 2 — Scraping Pipeline
 **Stack:** `services/scraper/` (Python 3.12) + `services/api/` additions (Java + Spring Boot)
 
@@ -216,11 +244,12 @@ Send extracted article text to Claude with a strict JSON schema tool. Validate o
 
 **AC:**
 - [ ] `anthropic.messages.create` call with `tools=[recipe_extraction_tool]` (JSON schema matching `docs/schema.md` recipe structure)
+- [ ] Extraction schema includes an optional `substitutions` array: each entry has `original_ingredient_name`, `substitute_ingredient_name`, `conversion_ratio` (default 1.0), `notes` — Claude extracts these from recipe text (e.g. "you can use Greek yogurt instead of sour cream")
 - [ ] System prompt committed as a constant (not inline string)
 - [ ] Guardrails AI validator: required fields present, `servings > 0`, `cook_time_minutes >= 0`, at least one ingredient, at least one step, all ingredient quantities parseable as numbers
 - [ ] On validation failure: retry Claude call once with a correction prompt; if still failing, raise `ParseError`
 - [ ] Updates `scrape_jobs.status=embedding` on success
-- [ ] Unit tests: fixture Claude tool response → parsed correctly into domain object; missing required field → `ParseError`; guard rails rejection on `servings=0`
+- [ ] Unit tests: fixture Claude tool response → parsed correctly into domain object; fixture with substitutions → substitution objects present; missing required field → `ParseError`; guard rails rejection on `servings=0`
 
 ---
 
@@ -232,6 +261,7 @@ Persist the parsed recipe to PostgreSQL. Normalise ingredients against the share
 **AC:**
 - [ ] Ingredient normalisation: lowercase + singularise `name` → look up `ingredients.normalized_name`; insert if not found
 - [ ] Write `recipes`, `recipe_ingredients`, `recipe_steps` rows in a single transaction via asyncpg
+- [ ] If parsed substitutions present: normalise original + substitute ingredient names against the catalog; write `recipe_ingredient_substitutions` rows with `source='recipe'` in the same transaction; skip any substitution where either ingredient cannot be resolved
 - [ ] Sets `recipes.parsed_at` to now
 - [ ] Updates `scrape_jobs.status=embedding`, `scrape_jobs.recipe_id` on commit
 - [ ] Integration test (Testcontainers PostgreSQL): parsed fixture recipe → correct rows in all three tables; re-running with same ingredient names reuses existing ingredient rows
@@ -280,6 +310,20 @@ Python worker service. Scheduled job fetches cost for newly added ingredients.
 - [ ] Cache result in Redis `cost:{ingredient_id}:{unit}` with 6h TTL; persist to `ingredient_costs` table
 - [ ] `docker-compose.yml` updated with `worker` service
 - [ ] Unit test: cost API fixture response → correct Redis key written + DB row inserted
+
+---
+
+### EP2-09: Nutrition extraction during scraping
+**Depends on:** EP2-04 (Claude parser) | **Parallel with:** EP2-05
+
+Extend the Claude extraction schema and scraper pipeline to capture nutrition data when the source page includes it.
+
+**AC:**
+- [ ] `recipe_nutrition` table added via Flyway migration (`V_nutrition__recipe_nutrition.sql`)
+- [ ] Claude extraction tool schema extended with an optional `nutrition` object (`calories`, `protein_g`, `carbs_g`, `fat_g`, `fiber_g`, `sodium_mg`, `serving_size_label`); all fields optional — many recipe pages omit some or all
+- [ ] Scraper writes a `recipe_nutrition` row if any nutrition field is non-null; skips insert (no row) if Claude returns no nutrition data
+- [ ] `GET /recipes/:id/cook-mode` now returns the nutrition object if a row exists
+- [ ] Unit test: Claude fixture response with full nutrition → all fields persisted; fixture with no nutrition → no row written, cook-mode returns `nutrition: null`
 
 ---
 

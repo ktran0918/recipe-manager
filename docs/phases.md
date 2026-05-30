@@ -54,6 +54,13 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
 - [ ] `GET /recipes` with basic keyword filter (PostgreSQL ILIKE via JPQL; Elasticsearch in Phase 2)
 - [ ] `GET /recipes/:id` with full ingredient + step detail
 
+**Cook Mode**
+- [ ] Flyway migration: `recipe_nutrition` table
+- [ ] `GET /recipes/:id/cook-mode?servings=N` — condensed view: cook time, scaled ingredients, original directions, serving size, nutrition (null until Phase 2), `source_url`
+- [ ] `POST /recipes/:id/select` — store selection in Redis (`cook:selection:{user_id}`, 24h TTL); returns cook-mode view
+- [ ] `DELETE /recipes/selection` — clear selection; idempotent
+- [ ] `GET /recipes/selection` — return current selection or null
+
 **Testing**
 - [ ] Testcontainers: PostgreSQL + Redis containers; `@Transactional` rollback per test
 - [ ] MockMvc integration tests: full auth flow, recipe CRUD
@@ -75,7 +82,7 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
 - [ ] RabbitMQ consumer (aio-pika)
 - [ ] HTTP fetcher: httpx for static pages; Playwright for JS-rendered pages
 - [ ] Content extractor: trafilatura (strips nav, ads, boilerplate)
-- [ ] Claude API integration: structured output with recipe schema
+- [ ] Claude API integration: structured output with recipe schema including optional `substitutions[]` array (extracted from recipe text)
   ```python
   # Claude call with strict JSON schema
   response = anthropic.messages.create(
@@ -86,6 +93,7 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
   )
   ```
 - [ ] Guardrails AI: validate required fields, sane quantity ranges, non-empty steps
+- [ ] Write `recipe_ingredient_substitutions` rows (`source='recipe'`) for any substitutions extracted from the recipe text
 - [ ] Ingredient normalization: match to existing `ingredients` table or create new
 
 **Embedding Pipeline**
@@ -103,6 +111,11 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
 - [ ] WebSocket endpoint: real-time status push via Redis pub/sub
 - [ ] Dedup: check Redis `recipe:scraped:{url_hash}` before scraping
 
+**Nutrition Extraction**
+- [ ] Extend Claude extraction schema with optional `nutrition` object
+- [ ] Write `recipe_nutrition` row if any nutrition field returned; skip if none
+- [ ] `GET /recipes/:id/cook-mode` now returns populated nutrition for scraped recipes
+
 **Cost Fetching**
 - [ ] Worker job: on new ingredient, attempt cost lookup from external source
 - [ ] Cache in Redis with 6h TTL; persist baseline to `ingredient_costs`
@@ -112,7 +125,7 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
 - [ ] Integration test: mock Claude API, run full scrape pipeline end-to-end
 - [ ] Test: dedup prevents re-scraping same URL within 7 days
 
-**Definition of done:** Submit `seriouseats.com` pizza recipe URL → poll job → recipe appears with structured ingredients and estimated costs.
+**Definition of done:** Submit `seriouseats.com` pizza recipe URL → poll job → recipe appears with structured ingredients, estimated costs, and nutrition data (if present on source page).
 
 ---
 
