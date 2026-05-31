@@ -17,7 +17,7 @@
 ---
 
 ### EP1-01: Docker Compose and environment scaffold
-**Depends on:** nothing | **Parallel with:** EP1-02
+**Depends on:** nothing | **Parallel with:** EP1-02 | **Status: Complete**
 
 Stand up all infrastructure containers. Verify everything is reachable before application code begins.
 
@@ -31,18 +31,18 @@ Stand up all infrastructure containers. Verify everything is reachable before ap
 ---
 
 ### EP1-02: Spring Boot API service scaffold and CI
-**Depends on:** nothing | **Parallel with:** EP1-01
+**Depends on:** nothing | **Parallel with:** EP1-01 | **Status: Complete**
 
 Create the `services/api/` Spring Boot project. Establish the layer structure, error handling, and CI pipeline that all subsequent stories build on.
 
 **AC:**
-- [ ] Maven project with Java 21, Spring Boot 3.x; dependencies: Spring Web, Spring Data JPA, Spring Security, Spring AMQP, Spring Data Redis, springdoc-openapi, jjwt, Testcontainers (PostgreSQL, Redis)
-- [ ] Package structure establishes layers: `controller`, `service` (interfaces + `impl`), `repository`, `domain` (entities), `dto`, `config`, `exception`
-- [ ] `GET /actuator/health` returns `{"status":"UP"}`
-- [ ] `@RestControllerAdvice` returns `{"error": "<message>", "status": <code>}` for all unhandled exceptions
-- [ ] `application.yml` reads every config value from env vars with sensible defaults for local dev
-- [ ] GitHub Actions workflow: `./mvnw verify` runs Checkstyle + compile + tests on every PR; fails the build on violations
-- [ ] Checkstyle config committed at `services/api/checkstyle.xml`
+- [x] Maven project with Java 21, Spring Boot 3.x; dependencies: Spring Web, Spring Data JPA, Spring Security, Spring AMQP, Spring Data Redis, springdoc-openapi, jjwt, Testcontainers (PostgreSQL, Redis)
+- [x] Package structure establishes layers: `controller`, `service` (interfaces + `impl`), `repository`, `domain` (entities), `dto`, `config`, `exception`
+- [x] `GET /actuator/health` returns `{"status":"UP"}`
+- [x] `@RestControllerAdvice` returns `{"error": "<message>", "status": <code>}` for all unhandled exceptions
+- [x] `application.yml` reads every config value from env vars with sensible defaults for local dev
+- [x] GitHub Actions workflow: `./mvnw verify` runs Checkstyle + compile + tests on every PR; fails the build on violations
+- [x] Checkstyle config committed at `services/api/checkstyle.xml`
 
 ---
 

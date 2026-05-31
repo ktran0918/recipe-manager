@@ -173,4 +173,67 @@ Wraps the test in a transaction and rolls it back after — no test data leaks b
 
 ---
 
+## Spring Security
+
+### `SecurityFilterChain` — the central security configuration
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/auth/**").permitAll()
+                .anyRequest().authenticated()
+            )
+            .oauth2Login(oauth2 -> oauth2.loginPage("/auth/google"));
+        return http.build();
+    }
+}
+```
+
+**`@Configuration` + `@EnableWebSecurity`**
+
+`@Configuration` marks this class as a source of `@Bean` methods for the DI container. `@EnableWebSecurity` activates Spring Security's filter chain. C# equivalent: `builder.Services.AddAuthentication(...) + AddAuthorization(...)` in `Program.cs`, except the setup lives in a dedicated class.
+
+**`SecurityFilterChain`**
+
+A chain of servlet filters that runs on every HTTP request before it reaches your controllers — same concept as ASP.NET Core middleware. Without a custom bean, Spring Boot defaults to redirecting all unauthenticated traffic to OAuth2 login (which is what we saw when `/actuator/health` returned a 302 to Google).
+
+**`.csrf(csrf -> csrf.disable())`**
+
+CSRF attacks exploit session cookies. We use stateless JWTs — no server-side session to hijack — so disabling CSRF is correct. ASP.NET Core does the same automatically when JWT bearer auth is configured.
+
+**`.sessionManagement(...STATELESS)`**
+
+Tells Spring Security never to create an `HttpSession`. Without this, Spring would still issue `JSESSIONID` cookies even though we're fully stateless. Every request must carry identity in the `Authorization` header.
+
+**`.authorizeHttpRequests(...)`**
+
+The route access policy — equivalent to `[Authorize]` attributes, but defined centrally. Rules evaluate top-to-bottom; first match wins:
+
+| Matcher | Policy |
+|---|---|
+| `/actuator/health`, `/actuator/info` | `permitAll()` — public, no token needed |
+| `/auth/**` | `permitAll()` — login flow; callers have no token yet |
+| `anyRequest()` | `authenticated()` — requires a valid JWT |
+
+**`.oauth2Login(...)`**
+
+Tells Spring where to send unauthenticated requests that hit a protected route. The current value (`/auth/google`) is a stub — EP1-05 and EP1-06 replace this with our own JWT issuance flow.
+
+### Why two phases? (Google OAuth2 vs our JWTs)
+
+Spring's OAuth2 client handles the Google handshake: redirect → consent → exchange code for Google profile. That proves identity once. After that, we issue our own short-lived JWT (15 min access + 7 day refresh stored in Redis). From that point forward, our JWTs are the session credential — Google is never contacted again.
+
+EP1-05 adds the `JwtAuthFilter` (`OncePerRequestFilter`) that intercepts every request, validates our JWT's signature and expiry via jjwt, and populates `SecurityContextHolder` with a `UserPrincipal`. That's when `SecurityConfig` gets the full treatment.
+
+---
+
 *This doc grows as new patterns appear during development.*
