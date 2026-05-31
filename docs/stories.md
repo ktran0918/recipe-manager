@@ -22,11 +22,11 @@
 Stand up all infrastructure containers. Verify everything is reachable before application code begins.
 
 **AC:**
-- [ ] `docker-compose.yml` defines: PostgreSQL 16, Redis 7, RabbitMQ 3 (+ management UI), Elasticsearch 8.13, Qdrant latest
-- [ ] All containers have `healthcheck` entries; dependent services use `condition: service_healthy`
-- [ ] `.env.example` documents every env var with an inline comment; no secrets committed
-- [ ] `docker-compose up` reaches a stable healthy state with no restarts
-- [ ] All services accessible on their documented ports (5432, 6379, 5672/15672, 9200, 6333)
+- [x] `docker-compose.yml` defines: PostgreSQL 16, Redis 7, RabbitMQ 3 (+ management UI), Elasticsearch 8.13, Qdrant latest
+- [x] All containers have `healthcheck` entries; dependent services use `condition: service_healthy`
+- [x] `.env.example` documents every env var with an inline comment; no secrets committed
+- [x] `docker-compose up` reaches a stable healthy state with no restarts
+- [x] All services accessible on their documented ports (5432, 6379, 5672/15672, 9200, 6333)
 
 ---
 
