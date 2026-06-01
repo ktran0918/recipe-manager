@@ -173,6 +173,134 @@ Wraps the test in a transaction and rolls it back after — no test data leaks b
 
 ---
 
+## JPA Entities and Repositories
+
+### `@Entity` and `@Table`
+
+```java
+@Entity
+@Table(name = "users")
+public class User { ... }
+```
+
+`@Entity` registers the class with JPA's persistence context. `@Table(name=...)` maps it to the exact DB table name. C# equivalent: an EF Core model class with `[Table("users")]`. Spring Boot's default naming converts camelCase to snake_case automatically, but being explicit avoids surprises.
+
+### Primary keys — `@Id` and `@GeneratedValue`
+
+```java
+@Id
+@GeneratedValue(strategy = GenerationType.UUID)
+@Column(updatable = false, nullable = false)
+private UUID id;
+```
+
+`GenerationType.UUID` delegates to the DB's `gen_random_uuid()`. C# equivalent: `[Key]` + `.ValueGeneratedOnAdd()` in EF Core.
+
+### Timestamp lifecycle — `@PrePersist` / `@PreUpdate`
+
+```java
+@PrePersist
+protected void onCreate() { createdAt = updatedAt = OffsetDateTime.now(); }
+
+@PreUpdate
+protected void onUpdate() { updatedAt = OffsetDateTime.now(); }
+```
+
+Lifecycle callbacks that fire just before `INSERT` and `UPDATE`. C# equivalent: overriding `SaveChanges()` in `DbContext`, or using an EF Core `ISaveChangesInterceptor`.
+
+### Relationships — `@OneToMany` / `@ManyToOne`
+
+```java
+// Inverse side (parent) — no FK column here
+@OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+private List<RecipeIngredient> ingredients = new ArrayList<>();
+
+// Owning side (child) — holds the FK column
+@ManyToOne(fetch = FetchType.LAZY, optional = false)
+@JoinColumn(name = "recipe_id", nullable = false)
+private Recipe recipe;
+```
+
+The side with `@JoinColumn` owns the FK column in the DB. The `@OneToMany` side uses `mappedBy` to point back to the owning field name. C# equivalent: `HasMany(...).WithOne(...).HasForeignKey(...)` in `OnModelCreating`.
+
+**Always use `FetchType.LAZY` on collections.** `EAGER` (the JPA default for `@ManyToOne`) loads the related object immediately; on `@OneToMany` it would load the entire collection on every parent query, causing N+1 problems.
+
+### Composite primary keys — `@Embeddable` + `@EmbeddedId`
+
+```java
+@Embeddable
+public class HouseholdMemberId implements Serializable {
+    @Column(name = "household_id") private UUID householdId;
+    @Column(name = "user_id")      private UUID userId;
+    // equals() and hashCode() required
+}
+
+@Entity
+public class HouseholdMember {
+    @EmbeddedId private HouseholdMemberId id;
+
+    @ManyToOne @MapsId("householdId") @JoinColumn(name = "household_id")
+    private Household household;
+}
+```
+
+`@Embeddable` is a value type embedded inside an entity — used here as the composite PK. `@EmbeddedId` marks the field that holds it. `@MapsId("householdId")` links the `@ManyToOne` FK to the matching field in the embedded key, preventing duplicate column mappings.
+
+`equals()` and `hashCode()` are **required** on the embeddable — JPA uses them to identify and deduplicate cached entity instances.
+
+C# equivalent: `HasKey(x => new { x.HouseholdId, x.UserId })` in `OnModelCreating`. Java requires the separate key class; C# does not.
+
+### PostgreSQL arrays — `String[]`
+
+```java
+@Column(name = "occasions", columnDefinition = "text[]")
+private String[] occasions;
+```
+
+Hibernate 6 (Spring Boot 3) maps `String[]` to PostgreSQL `text[]` natively. `columnDefinition` passes the raw SQL type hint to the JDBC driver. C# equivalent: a `string[]` property with `.HasConversion<string>()` or a custom `ValueConverter` in EF Core.
+
+### Spring Data repositories
+
+```java
+public interface RecipeRepository extends JpaRepository<Recipe, UUID> {
+    List<Recipe> findByHouseholdId(UUID householdId);
+    Optional<Recipe> findByIdAndHouseholdId(UUID id, UUID householdId);
+}
+```
+
+Spring Data parses method names into JPQL at startup — no implementation needed. Rules:
+- `findBy<Field>` → `WHERE field = ?`
+- `findBy<Field>And<Field>` → `WHERE field1 = ? AND field2 = ?`
+- `findBy<Field>OrderBy<OtherField>Asc` → adds `ORDER BY`
+- Nested fields: `findByRecipe_Id(...)` traverses the `recipe` relationship to its `id` field
+
+C# equivalent: LINQ expressions on `DbSet<T>` — same idea, different syntax.
+
+### `@DataJpaTest` with Testcontainers
+
+```java
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Testcontainers
+class Phase1EntityTest {
+
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
+
+    @DynamicPropertySource
+    static void configureProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        // ...
+    }
+}
+```
+
+`@DataJpaTest` loads only the JPA slice (no web layer, no security). `replace = NONE` stops Spring from substituting your datasource with H2 — necessary when using PostgreSQL-specific types. `@DynamicPropertySource` injects the live container's connection details before the context starts. C# equivalent: `WebApplicationFactory` with `ConfigureWebHost` to swap the connection string.
+
+Each test runs inside a transaction that rolls back automatically after the test, so no data leaks between tests.
+
+---
+
 ## Spring Security
 
 ### `SecurityFilterChain` — the central security configuration

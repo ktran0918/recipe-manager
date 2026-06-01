@@ -54,25 +54,26 @@ Create the `services/api/` Spring Boot project. Establish the layer structure, e
 **AC:**
 - [ ] Flyway configured (`spring.flyway.*`) to run automatically on startup
 - [ ] `V1__users_and_households.sql`: `users`, `households`, `household_members`
-- [ ] `V2__recipes.sql`: `recipes`, `ingredients`, `recipe_ingredients`, `recipe_steps`
+- [ ] `V2__recipes.sql`: `recipes`, `ingredients`, `recipe_ingredients`, `recipe_steps`, `recipe_ingredient_substitutions`, `recipe_nutrition`
 - [ ] All constraints, indexes, and check constraints match `docs/schema.md` exactly
 - [ ] `docker-compose up` + API start applies all migrations cleanly on a blank database
 - [ ] Re-running migrations on an already-migrated database is a no-op (Flyway checksum passes)
+- [ ] Update `Phase1EntityTest` — switch `spring.jpa.hibernate.ddl-auto` from `create-drop` to `validate` and `spring.flyway.enabled` from `false` to `true` (lines 55–56); Flyway now owns schema creation for tests too
 
 ---
 
 ### EP1-04: JPA entities and repositories
-**Depends on:** EP1-03 | **Parallel with:** EP1-05
+**Depends on:** EP1-03 | **Parallel with:** EP1-05 | **Status: Complete**
 
 Map every Phase 1 table to a JPA entity and Spring Data repository. No service or controller logic yet.
 
 **AC:**
-- [ ] Entities: `User`, `Household`, `HouseholdMember` (composite PK), `Recipe`, `Ingredient`, `RecipeIngredient`, `RecipeStep`
-- [ ] Relationships mapped correctly (`@OneToMany(mappedBy=...)`, `@ManyToOne`, `@EmbeddedId` for `HouseholdMember`)
-- [ ] `FetchType.LAZY` on all collections; no accidental N+1 loading
-- [ ] Spring Data JPA repositories: one interface per entity, typed correctly (e.g., `RecipeRepository extends JpaRepository<Recipe, UUID>`)
-- [ ] Custom finder examples: `RecipeRepository.findByHouseholdId(UUID)`, `HouseholdMemberRepository.findByUserId(UUID)`
-- [ ] `@DataJpaTest` tests: save and retrieve each entity via its repository; verify relationships load correctly
+- [x] Entities: `User`, `Household`, `HouseholdMember` (composite PK), `Recipe`, `Ingredient`, `RecipeIngredient`, `RecipeStep`
+- [x] Relationships mapped correctly (`@OneToMany(mappedBy=...)`, `@ManyToOne`, `@EmbeddedId` for `HouseholdMember`)
+- [x] `FetchType.LAZY` on all collections; no accidental N+1 loading
+- [x] Spring Data JPA repositories: one interface per entity, typed correctly (e.g., `RecipeRepository extends JpaRepository<Recipe, UUID>`)
+- [x] Custom finder examples: `RecipeRepository.findByHouseholdId(UUID)`, `HouseholdMemberRepository.findByUserId(UUID)`
+- [x] `@DataJpaTest` tests: save and retrieve each entity via its repository; verify relationships load correctly
 
 ---
 
@@ -82,6 +83,8 @@ Map every Phase 1 table to a JPA entity and Spring Data repository. No service o
 **Contract:** Define the `UserPrincipal` record (fields: `userId`, `householdId`, `role`) before starting. EP1-07 depends on this shape.
 
 Configure the `SecurityFilterChain`. Implement the filter that validates JWTs on every request and populates the `SecurityContext`. No OAuth flow yet — stubs are fine.
+
+**Note:** A placeholder `SecurityConfig.java` already exists in `services/api/src/main/java/com/recipemanager/api/config/` from EP1-02 work. It permits `/actuator/health` and `/auth/**` and stubs `.oauth2Login`. EP1-05 replaces it with the full JWT filter chain — do not start from scratch.
 
 **AC:**
 - [ ] `SecurityFilterChain` bean: `/auth/**` and `/actuator/health` are public; all other routes require a valid JWT
@@ -319,7 +322,6 @@ Python worker service. Scheduled job fetches cost for newly added ingredients.
 Extend the Claude extraction schema and scraper pipeline to capture nutrition data when the source page includes it.
 
 **AC:**
-- [ ] `recipe_nutrition` table added via Flyway migration (`V_nutrition__recipe_nutrition.sql`)
 - [ ] Claude extraction tool schema extended with an optional `nutrition` object (`calories`, `protein_g`, `carbs_g`, `fat_g`, `fiber_g`, `sodium_mg`, `serving_size_label`); all fields optional — many recipe pages omit some or all
 - [ ] Scraper writes a `recipe_nutrition` row if any nutrition field is non-null; skips insert (no row) if Claude returns no nutrition data
 - [ ] `GET /recipes/:id/cook-mode` now returns the nutrition object if a row exists
@@ -523,7 +525,7 @@ Refactor the from-scratch RAG pipeline to use LlamaIndex. Verify output matches.
 ---
 
 ### EP6-05: NL meal planner agent
-**Depends on:** EP6-03, EP6-04 | **Parallel with:** EP6-04
+**Depends on:** EP6-03, EP6-04 | **Parallel with:** nothing
 
 LangChain ReAct agent with four tools. Writes the meal plan via the API service.
 

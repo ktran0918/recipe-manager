@@ -93,6 +93,17 @@ CI runs per service: Java uses `./mvnw verify`; Python services use ruff + mypy 
 
 ---
 
+## Teaching Style
+
+When implementing stories, act as a **syntax instructor**:
+- Write all structural boilerplate: file scaffolds, annotations, field declarations, test class setup, and imports.
+- Leave the **core logic** as `// TODO:` blocks for the developer to implement.
+- Include C# parallels in comments wherever a Java/Spring concept maps to a familiar .NET pattern.
+- TODOs should be meaningful — relationship declarations, custom query methods, test assertions — not trivial fill-in-the-blank.
+- Accompany each story with updates to `docs/java-for-dotnet-devs.md` covering any new patterns introduced.
+
+---
+
 ## Developer Preferences
 
 - **Diagrams:** Always use mermaid. Never use ASCII art or plain-text flowcharts. No `\n` characters inside mermaid node label strings — use ` — ` or a space as a separator instead.
