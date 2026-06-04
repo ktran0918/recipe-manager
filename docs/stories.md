@@ -78,7 +78,7 @@ Map every Phase 1 table to a JPA entity and Spring Data repository. No service o
 ---
 
 ### EP1-05: Spring Security config and JWT filter
-**Depends on:** EP1-02 | **Parallel with:** EP1-04
+**Depends on:** EP1-02 | **Parallel with:** EP1-04 | **Status: Complete**
 
 **Contract:** Define the `UserPrincipal` record (fields: `userId`, `householdId`, `role`) before starting. EP1-07 depends on this shape.
 
