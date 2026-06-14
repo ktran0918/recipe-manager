@@ -1,7 +1,11 @@
 package com.recipemanager.api;
 
+import com.recipemanager.api.repository.HouseholdMemberRepository;
+import com.recipemanager.api.repository.HouseholdRepository;
+import com.recipemanager.api.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
 // Loads the full Spring application context.
@@ -13,6 +17,15 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @ActiveProfiles("test")
 class RecipeManagerApplicationTests {
+
+    // application-test.yml excludes DataSourceAutoConfiguration/HibernateJpaAutoConfiguration,
+    // so Spring Data JPA never creates repository beans. HouseholdServiceImpl constructor-injects
+    // these three, so without mocks the context fails with NoSuchBeanDefinitionException.
+    // As more @Service classes pick up repository dependencies, they'll need @MockBean entries
+    // here too — that's the accepted cost of keeping this smoke test infra-free.
+    @MockBean private HouseholdRepository householdRepository;
+    @MockBean private HouseholdMemberRepository householdMemberRepository;
+    @MockBean private UserRepository userRepository;
 
     @Test
     void contextLoads() {

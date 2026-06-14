@@ -128,8 +128,6 @@ Service + controller layer for household management. Uses `@AuthenticationPrinci
 - [x] `HouseholdService` interface + `HouseholdServiceImpl`; controller depends on interface
 - [x] MockMvc integration tests: every endpoint — happy path + primary error cases
 
-**Known issue (deferred to EP1-03):** `RecipeManagerApplicationTests.contextLoads` now fails — `HouseholdServiceImpl` is the first `@Service` requiring JPA repository beans, which don't exist under the "test" profile's `DataSourceAutoConfiguration`/`HibernateJpaAutoConfiguration` exclusions. Fixing this properly needs a real test schema, which depends on EP1-03 (Flyway migrations).
-
 ---
 
 ### EP1-08: Recipe CRUD endpoints
