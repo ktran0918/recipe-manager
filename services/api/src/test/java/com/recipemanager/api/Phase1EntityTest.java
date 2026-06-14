@@ -50,10 +50,8 @@ class Phase1EntityTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
-        // EP1-03 (Flyway migrations) isn't done yet — let Hibernate generate the schema
-        // from entities directly. Switch back to "validate" once Flyway migrations exist.
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-        registry.add("spring.flyway.enabled", () -> "false");
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+        registry.add("spring.flyway.enabled", () -> "true");
     }
 
     @Autowired UserRepository userRepository;
