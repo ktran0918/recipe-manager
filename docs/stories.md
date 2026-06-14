@@ -47,18 +47,18 @@ Create the `services/api/` Spring Boot project. Establish the layer structure, e
 ---
 
 ### EP1-03: Flyway migrations — Phase 1 schemas
-**Depends on:** EP1-01, EP1-02 | **Parallel with:** nothing
+**Depends on:** EP1-01, EP1-02 | **Parallel with:** nothing | **Status: Complete**
 
 **Contract session:** Both devs review `docs/schema.md` and sign off on every column, type, and constraint before this story begins. Downstream stories depend on this schema being stable.
 
 **AC:**
-- [ ] Flyway configured (`spring.flyway.*`) to run automatically on startup
-- [ ] `V1__users_and_households.sql`: `users`, `households`, `household_members`
-- [ ] `V2__recipes.sql`: `recipes`, `ingredients`, `recipe_ingredients`, `recipe_steps`, `recipe_ingredient_substitutions`, `recipe_nutrition`
-- [ ] All constraints, indexes, and check constraints match `docs/schema.md` exactly
-- [ ] `docker-compose up` + API start applies all migrations cleanly on a blank database
-- [ ] Re-running migrations on an already-migrated database is a no-op (Flyway checksum passes)
-- [ ] Update `Phase1EntityTest` — switch `spring.jpa.hibernate.ddl-auto` from `create-drop` to `validate` and `spring.flyway.enabled` from `false` to `true` (lines 55–56); Flyway now owns schema creation for tests too
+- [x] Flyway configured (`spring.flyway.*`) to run automatically on startup
+- [x] `V1__users_and_households.sql`: `users`, `households`, `household_members`
+- [x] `V2__recipes.sql`: `recipes`, `ingredients`, `recipe_ingredients`, `recipe_steps`, `recipe_ingredient_substitutions`, `recipe_nutrition`
+- [x] All constraints, indexes, and check constraints match `docs/schema.md` exactly
+- [x] `docker-compose up` + API start applies all migrations cleanly on a blank database
+- [x] Re-running migrations on an already-migrated database is a no-op (Flyway checksum passes)
+- [x] Update `Phase1EntityTest` — switch `spring.jpa.hibernate.ddl-auto` from `create-drop` to `validate` and `spring.flyway.enabled` from `false` to `true` (lines 55–56); Flyway now owns schema creation for tests too
 
 ---
 

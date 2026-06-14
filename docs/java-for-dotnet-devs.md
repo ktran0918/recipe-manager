@@ -364,4 +364,67 @@ EP1-05 adds the `JwtAuthFilter` (`OncePerRequestFilter`) that intercepts every r
 
 ---
 
+## Database Migrations — Flyway
+
+### Flyway vs EF Core migrations
+
+| Concern | EF Core | Flyway |
+|---|---|---|
+| Migration files | C# classes, auto-generated | Plain `.sql` files, hand-written |
+| Apply on startup | `app.MigrateAsync()` | Automatic when `spring.flyway.enabled=true` |
+| Rollback | Manual down migrations | No built-in rollback — write a new migration |
+| History table | `__EFMigrationsHistory` | `flyway_schema_history` |
+| Checksum | None | SHA-256 of the SQL file — edit after apply = startup error |
+
+Flyway is intentionally simple: it scans a directory, finds files it hasn't applied yet, and runs them in version order. No ORM knowledge required.
+
+### Naming convention
+
+```
+V{version}__{description}.sql
+```
+
+- `V` prefix is required
+- Version is a number (can use dots for sub-versions: `V1.1`)
+- Two underscores separate the version from the description
+- Description uses underscores as word separators
+
+Examples: `V1__users_and_households.sql`, `V2__recipes.sql`, `V3__add_pantry_tables.sql`.
+
+### Configuration
+
+```yaml
+spring:
+  flyway:
+    enabled: true
+    locations: classpath:db/migration   # default; explicit here for clarity
+```
+
+In `application.yml`, this enables Flyway globally. In tests, `@DynamicPropertySource` can override `spring.flyway.enabled` to `true` and `spring.jpa.hibernate.ddl-auto` to `validate` — Flyway creates the schema, Hibernate only checks it.
+
+### How the checksum enforcement works
+
+On first apply, Flyway stores a SHA-256 checksum of each migration file in `flyway_schema_history`. On every subsequent startup it re-computes the checksum and compares. If a file was edited after it was applied, the app fails to start with:
+
+```
+FlywayException: Validate failed: Migration checksum mismatch for migration version 1
+```
+
+**Never edit an applied migration.** Write a new one instead. This is stricter than EF Core, which doesn't track file contents.
+
+### Interaction with `ddl-auto`
+
+```yaml
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+```
+
+`validate` means Hibernate checks that its entity mappings match the live schema — it doesn't create or alter tables. This is the correct setting when Flyway owns the schema. The two work together: Flyway runs first (during datasource initialization), then Hibernate validates the result.
+
+`create-drop` (sometimes used in early dev) lets Hibernate create the schema from entities and drop it on shutdown — bypass Flyway entirely. **Don't use `create-drop` once Flyway migrations exist.**
+
+---
+
 *This doc grows as new patterns appear during development.*
