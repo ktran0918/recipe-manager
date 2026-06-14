@@ -87,11 +87,11 @@ Configure the `SecurityFilterChain`. Implement the filter that validates JWTs on
 **Note:** A placeholder `SecurityConfig.java` already exists in `services/api/src/main/java/com/recipemanager/api/config/` from EP1-02 work. It permits `/actuator/health` and `/auth/**` and stubs `.oauth2Login`. EP1-05 replaces it with the full JWT filter chain — do not start from scratch.
 
 **AC:**
-- [ ] `SecurityFilterChain` bean: `/auth/**` and `/actuator/health` are public; all other routes require a valid JWT
-- [ ] `JwtAuthFilter extends OncePerRequestFilter`: extracts `Authorization: Bearer <token>`, validates signature + expiry with jjwt, sets `SecurityContextHolder` with a `UserPrincipal`
-- [ ] Invalid or expired token returns 401 with the standard error JSON format
-- [ ] `UserPrincipal` record is the `@AuthenticationPrincipal` type used across all controllers
-- [ ] Unit tests: valid token → principal populated correctly; expired token → 401; tampered signature → 401; missing header → 401
+- [x] `SecurityFilterChain` bean: `/auth/**` and `/actuator/health` are public; all other routes require a valid JWT
+- [x] `JwtAuthFilter extends OncePerRequestFilter`: extracts `Authorization: Bearer <token>`, validates signature + expiry with jjwt, sets `SecurityContextHolder` with a `UserPrincipal`
+- [x] Invalid or expired token returns 401 with the standard error JSON format
+- [x] `UserPrincipal` record is the `@AuthenticationPrincipal` type used across all controllers
+- [x] Unit tests: valid token → principal populated correctly; expired token → 401; tampered signature → 401; missing header → 401
 
 ---
 
@@ -113,20 +113,22 @@ Implement the full auth flow: Google redirect → callback → upsert user → i
 ---
 
 ### EP1-07: Household endpoints
-**Depends on:** EP1-04, EP1-05 | **Parallel with:** EP1-06
+**Depends on:** EP1-04, EP1-05 | **Parallel with:** EP1-06 | **Status: Complete**
 
 Service + controller layer for household management. Uses `@AuthenticationPrincipal UserPrincipal` from EP1-05; integration tests use `@WithMockUser` until EP1-06 is merged.
 
 **AC:**
-- [ ] `POST /households`: creates household, assigns caller as `owner`, generates a random 8-char invite code; returns 409 if user already in a household
-- [ ] `GET /households/me`: returns household + member list for the caller's household
-- [ ] `PATCH /households/me`: updates `name`; 403 if caller is not owner
-- [ ] `POST /households/me/invite`: regenerates invite code (owner only); old code immediately invalid
-- [ ] `POST /households/join`: joins by invite code; 404 on invalid code, 409 if already a member
-- [ ] `GET /households/me/members`: lists members with roles
-- [ ] `DELETE /households/me/members/:userId`: removes member (owner only; 400 if attempting to remove self)
-- [ ] `HouseholdService` interface + `HouseholdServiceImpl`; controller depends on interface
-- [ ] MockMvc integration tests: every endpoint — happy path + primary error cases
+- [x] `POST /households`: creates household, assigns caller as `owner`, generates a random 8-char invite code; returns 409 if user already in a household
+- [x] `GET /households/me`: returns household + member list for the caller's household
+- [x] `PATCH /households/me`: updates `name`; 403 if caller is not owner
+- [x] `POST /households/me/invite`: regenerates invite code (owner only); old code immediately invalid
+- [x] `POST /households/join`: joins by invite code; 404 on invalid code, 409 if already a member
+- [x] `GET /households/me/members`: lists members with roles
+- [x] `DELETE /households/me/members/:userId`: removes member (owner only; 400 if attempting to remove self)
+- [x] `HouseholdService` interface + `HouseholdServiceImpl`; controller depends on interface
+- [x] MockMvc integration tests: every endpoint — happy path + primary error cases
+
+**Known issue (deferred to EP1-03):** `RecipeManagerApplicationTests.contextLoads` now fails — `HouseholdServiceImpl` is the first `@Service` requiring JPA repository beans, which don't exist under the "test" profile's `DataSourceAutoConfiguration`/`HibernateJpaAutoConfiguration` exclusions. Fixing this properly needs a real test schema, which depends on EP1-03 (Flyway migrations).
 
 ---
 

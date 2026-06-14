@@ -148,6 +148,22 @@
             </plugin>
 
             <!--
+                Mockito's byte-buddy agent attaches itself to the JVM at runtime to generate
+                mock classes. JDK 21 warns about this ahead of JEP 451, which will require
+                agents to be declared up front in a future release. -XX:+EnableDynamicAgentLoading
+                opts in explicitly, silencing the warning without changing test behavior.
+                C# equivalent: a NuGet package using runtime codegen (e.g. Castle DynamicProxy)
+                that trips an analyzer warning about a future SDK restriction.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-XX:+EnableDynamicAgentLoading</argLine>
+                </configuration>
+            </plugin>
+
+            <!--
                 Checkstyle: enforces code style at compile time.
                 Runs during the `verify` phase — `./mvnw verify` will fail the build on violations.
                 Equivalent to running dotnet-format or StyleCop as a CI gate.

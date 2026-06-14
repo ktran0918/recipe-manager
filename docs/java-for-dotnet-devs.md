@@ -427,4 +427,136 @@ spring:
 
 ---
 
+## Controllers and HTTP routing
+
+### `@RestController` and `@RequestMapping`
+
+```java
+@RestController
+@RequestMapping("/households")
+public class HouseholdController { ... }
+```
+
+`@RestController` = `@Controller` + `@ResponseBody` — every method return value is serialized to JSON automatically. `@RequestMapping` on the class sets the base path. Method-level annotations narrow it further:
+
+| Annotation | HTTP method | C# equivalent |
+|---|---|---|
+| `@GetMapping("/me")` | GET /households/me | `[HttpGet("me")]` |
+| `@PostMapping` | POST /households | `[HttpPost]` |
+| `@PatchMapping("/me")` | PATCH /households/me | `[HttpPatch("me")]` |
+| `@DeleteMapping("/me/members/{userId}")` | DELETE /households/me/members/{id} | `[HttpDelete("me/members/{userId}")]` |
+
+### `@RequestBody` and `@PathVariable`
+
+```java
+public ResponseEntity<HouseholdResponse> updateHousehold(
+        @PathVariable UUID userId,
+        @RequestBody UpdateHouseholdRequest request) { ... }
+```
+
+`@RequestBody` deserializes the JSON request body into the parameter type. C# equivalent: `[FromBody]`.
+
+`@PathVariable` binds a URL path segment — `{userId}` in the route — to the parameter. C# equivalent: `[FromRoute]`. Spring automatically converts the string to `UUID`.
+
+### `ResponseEntity<T>`
+
+```java
+return ResponseEntity.status(HttpStatus.CREATED).body(response);  // 201
+return ResponseEntity.ok(response);                                // 200
+return ResponseEntity.noContent().build();                         // 204 — no body
+```
+
+`ResponseEntity<T>` is `ActionResult<T>` — it lets you control the HTTP status code explicitly. When status code doesn't matter, you can return `T` directly from a `@RestController` method and Spring defaults to 200.
+
+### `@AuthenticationPrincipal`
+
+```java
+@GetMapping("/me")
+public ResponseEntity<HouseholdResponse> getMyHousehold(
+        @AuthenticationPrincipal UserPrincipal principal) { ... }
+```
+
+Injects the object stored as the principal in `SecurityContextHolder` — populated by `JwtAuthFilter` on every authenticated request. C# equivalent: `HttpContext.User`, but typed. No string key lookups like `User.FindFirst("sub").Value` — you get `principal.userId()` directly, compile-time safe.
+
+---
+
+## Service layer
+
+### Interface + implementation pattern
+
+```java
+// HouseholdService.java — interface
+public interface HouseholdService {
+    HouseholdResponse createHousehold(UUID userId, String name);
+    ...
+}
+
+// HouseholdServiceImpl.java — implementation
+@Service
+@Transactional
+public class HouseholdServiceImpl implements HouseholdService { ... }
+```
+
+C# equivalent: `IHouseholdService` registered as `builder.Services.AddScoped<IHouseholdService, HouseholdServiceImpl>()`. In Spring, `@Service` on the implementation is all you need — no registration call. The controller declares `HouseholdService` (the interface) as its constructor parameter; Spring resolves the `HouseholdServiceImpl` bean automatically because it's the only registered type that implements the interface.
+
+### `@Transactional`
+
+```java
+@Service
+@Transactional                          // all public methods get a transaction
+public class HouseholdServiceImpl { 
+
+    @Transactional(readOnly = true)     // overrides the class-level default for reads
+    public HouseholdResponse getMyHousehold(UUID householdId) { ... }
+}
+```
+
+`@Transactional` at class level wraps every public method in a DB transaction. `readOnly = true` is an optimisation hint to the DB and Hibernate — Hibernate skips dirty-checking on read-only transactions, which speeds up SELECT-heavy methods.
+
+C# equivalent: `TransactionScope` or EF Core's `SaveChanges()`, but declarative — no boilerplate in every method.
+
+---
+
+## Testing — web layer
+
+### `@WebMvcTest` vs `@SpringBootTest`
+
+```java
+@WebMvcTest(HouseholdController.class)
+class HouseholdControllerTest { ... }
+```
+
+`@WebMvcTest` loads only the web layer: controllers, filters, `SecurityFilterChain`. No services, no repositories, no database. Much faster than `@SpringBootTest` (full context). Use it for controller tests where you mock the service.
+
+C# equivalent: `WebApplicationFactory` with only the controller registered, services replaced by mocks.
+
+### `@MockBean`
+
+```java
+@MockBean private HouseholdService householdService;
+@MockBean private JwtService jwtService;   // needed by JwtAuthFilter
+```
+
+Replaces a real Spring bean with a Mockito mock and wires it into the context. C# equivalent: replacing a service registration with a mock in `ConfigureWebHost`. `@MockBean JwtService` is required because `SecurityConfig` loads `JwtAuthFilter`, which depends on it — even though tests never use a JWT.
+
+### Injecting `UserPrincipal` in MockMvc tests
+
+```java
+private static RequestPostProcessor withPrincipal(UUID userId, UUID householdId, String role) {
+    UserPrincipal principal = new UserPrincipal(userId, householdId, role);
+    Authentication auth = new UsernamePasswordAuthenticationToken(
+            principal, null, List.of(new SimpleGrantedAuthority(role)));
+    return authentication(auth);  // from SecurityMockMvcRequestPostProcessors
+}
+
+mockMvc.perform(get("/households/me").with(withPrincipal(userId, householdId, "member")))
+       .andExpect(status().isOk());
+```
+
+`SecurityMockMvcRequestPostProcessors.authentication(auth)` pre-populates the `SecurityContext` before MockMvc dispatches the request. `JwtAuthFilter` sees no `Authorization` header and passes through; `authorizeHttpRequests` finds the pre-set auth and allows it.
+
+C# equivalent: setting `HttpContext.User = new ClaimsPrincipal(...)` in a test delegating handler.
+
+---
+
 *This doc grows as new patterns appear during development.*
