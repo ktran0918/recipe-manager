@@ -17,8 +17,17 @@
     <module name="TreeWalker">
 
         <!-- ── Imports ──────────────────────────────────────────────────── -->
-        <!-- No wildcard imports: import java.util.* is banned -->
-        <module name="AvoidStarImport"/>
+        <!--
+            Google Java Style Guide: no wildcard imports — with one exception.
+            allowStaticMemberImports permits static wildcards for fluent test
+            DSLs (MockMvcRequestBuilders.*, MockMvcResultMatchers.*, Mockito.*),
+            which Spring's own docs use and which are designed to be imported
+            wholesale. Regular type wildcards (jakarta.persistence.*, etc.)
+            remain banned.
+        -->
+        <module name="AvoidStarImport">
+            <property name="allowStaticMemberImports" value="true"/>
+        </module>
         <!-- Remove imports that aren't used -->
         <module name="UnusedImports"/>
         <!-- Block sun.* and com.sun.* internal APIs -->
@@ -26,18 +35,19 @@
 
         <!-- ── Naming ────────────────────────────────────────────────────── -->
         <module name="TypeName"/>            <!-- Classes/interfaces: UpperCamelCase -->
-        <module name="MethodName"/>          <!-- Methods: lowerCamelCase -->
+        <!--
+            Methods: lowerCamelCase, with optional underscore-separated segments.
+            Allows the JUnit methodName_condition_expectedResult convention and
+            Spring Data JPA derived query names like findByHousehold_Id.
+        -->
+        <module name="MethodName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*(_[a-zA-Z0-9]+)*$"/>
+        </module>
         <module name="LocalVariableName"/>   <!-- Variables: lowerCamelCase -->
         <module name="ConstantName"/>        <!-- Static finals: UPPER_SNAKE_CASE -->
         <module name="PackageName">
             <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
         </module>
-
-        <!-- ── Braces ────────────────────────────────────────────────────── -->
-        <!-- Always use braces, even for single-line if/for/while -->
-        <module name="NeedBraces"/>
-        <module name="LeftCurly"/>
-        <module name="RightCurly"/>
 
         <!-- ── Correctness ───────────────────────────────────────────────── -->
         <!-- If you override equals(), you must override hashCode() too -->

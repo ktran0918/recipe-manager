@@ -1,7 +1,19 @@
 package com.recipemanager.api;
 
-import com.recipemanager.api.domain.*;
-import com.recipemanager.api.repository.*;
+import com.recipemanager.api.domain.Household;
+import com.recipemanager.api.domain.HouseholdMember;
+import com.recipemanager.api.domain.Ingredient;
+import com.recipemanager.api.domain.Recipe;
+import com.recipemanager.api.domain.RecipeIngredient;
+import com.recipemanager.api.domain.RecipeStep;
+import com.recipemanager.api.domain.User;
+import com.recipemanager.api.repository.HouseholdMemberRepository;
+import com.recipemanager.api.repository.HouseholdRepository;
+import com.recipemanager.api.repository.IngredientRepository;
+import com.recipemanager.api.repository.RecipeIngredientRepository;
+import com.recipemanager.api.repository.RecipeRepository;
+import com.recipemanager.api.repository.RecipeStepRepository;
+import com.recipemanager.api.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -134,7 +146,8 @@ class Phase1EntityTest {
         step.setInstruction("Mince the garlic.");
         recipeStepRepository.save(step);
 
-        List<RecipeIngredient> ingredients = recipeIngredientRepository.findByRecipe_IdOrderBySortOrderAsc(recipe.getId());
+        List<RecipeIngredient> ingredients =
+                recipeIngredientRepository.findByRecipe_IdOrderBySortOrderAsc(recipe.getId());
         assertThat(ingredients).hasSize(1);
         assertThat(ingredients.getFirst().getUnit()).isEqualTo("clove");
 
