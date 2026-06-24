@@ -54,7 +54,8 @@ class Phase1EntityTest {
             .withUsername("test")
             .withPassword("test");
 
-    // @DynamicPropertySource wires the running container's connection details into
+    // @DynamicPropertySource wires the running container's
+    // connection details into
     // Spring's property system before the application context starts.
     // C# equivalent: overriding WebApplicationFactory.ConfigureWebHost to swap the connection string.
     @DynamicPropertySource

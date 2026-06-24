@@ -480,6 +480,54 @@ Injects the object stored as the principal in `SecurityContextHolder` — popula
 
 ---
 
+## HTTP Client — `RestTemplate`
+
+```java
+// GET with a typed response
+ResponseEntity<GoogleUserInfo> resp =
+    restTemplate.exchange(url, HttpMethod.GET,
+        new HttpEntity<>(headers), GoogleUserInfo.class);
+GoogleUserInfo info = resp.getBody();
+
+// POST with a form-encoded body
+HttpHeaders headers = new HttpHeaders();
+headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+body.add("grant_type", "authorization_code");
+body.add("code", code);
+restTemplate.postForEntity(url, new HttpEntity<>(body, headers), MyResponse.class);
+```
+
+`RestTemplate` is Spring's synchronous HTTP client — equivalent to C#'s `HttpClient`. It's configured as a singleton `@Bean` so it's shared and thread-safe across the app. Declare it in a `@Configuration` class rather than creating it with `new` inside a service.
+
+`MultiValueMap<String, String>` (backed by `LinkedMultiValueMap`) is the Spring type for form data — equivalent to `FormUrlEncodedContent` in C#.
+
+---
+
+## Redis — `StringRedisTemplate`
+
+```java
+// Inject
+private final StringRedisTemplate redis;
+
+// Write with TTL
+redis.opsForValue().set("session:" + userId, refreshToken, Duration.ofDays(7));
+
+// Read
+String value = redis.opsForValue().get("session:" + userId);
+
+// Delete
+redis.delete("session:" + userId);
+```
+
+`StringRedisTemplate` is a pre-configured `RedisTemplate<String, String>` — both keys and values are `String`. Spring Boot auto-configures it when `spring-boot-starter-data-redis` is on the classpath and `spring.data.redis.url` is set.
+
+`.opsForValue()` returns the operations interface for plain key-value pairs. Redis also supports Hashes (`.opsForHash()`), Lists (`.opsForList()`), and Sets — each with their own ops interface.
+
+C# equivalent: `IConnectionMultiplexer` from StackExchange.Redis — `db.StringSet(key, value, TimeSpan.FromDays(7))`.
+
+---
+
 ## Service layer
 
 ### Interface + implementation pattern
@@ -513,6 +561,8 @@ public class HouseholdServiceImpl {
 
 `@Transactional` at class level wraps every public method in a DB transaction. `readOnly = true` is an optimisation hint to the DB and Hibernate — Hibernate skips dirty-checking on read-only transactions, which speeds up SELECT-heavy methods.
 
+Spring uses a proxy to intercept the call — the annotation has no effect if the method is called from within the same class (`this.method()` bypasses the proxy). This matters for methods like `AuthServiceImpl.handleGoogleCallback()`, which performs multiple DB writes (user upsert, household lookup) that must commit or roll back together.
+
 C# equivalent: `TransactionScope` or EF Core's `SaveChanges()`, but declarative — no boilerplate in every method.
 
 ---
@@ -539,6 +589,8 @@ C# equivalent: `WebApplicationFactory` with only the controller registered, serv
 
 Replaces a real Spring bean with a Mockito mock and wires it into the context. C# equivalent: replacing a service registration with a mock in `ConfigureWebHost`. `@MockBean JwtService` is required because `SecurityConfig` loads `JwtAuthFilter`, which depends on it — even though tests never use a JWT.
 
+Compare with `@Mock` (Mockito only, no Spring context) — use `@Mock` in pure unit tests with `@ExtendWith(MockitoExtension.class)`, and `@MockBean` in `@SpringBootTest` integration tests where you need the full context but want to stub one collaborator (e.g., the `RestTemplate` that calls Google's API in `AuthIntegrationTest`).
+
 ### Injecting `UserPrincipal` in MockMvc tests
 
 ```java
@@ -556,6 +608,21 @@ mockMvc.perform(get("/households/me").with(withPrincipal(userId, householdId, "m
 `SecurityMockMvcRequestPostProcessors.authentication(auth)` pre-populates the `SecurityContext` before MockMvc dispatches the request. `JwtAuthFilter` sees no `Authorization` header and passes through; `authorizeHttpRequests` finds the pre-set auth and allows it.
 
 C# equivalent: setting `HttpContext.User = new ClaimsPrincipal(...)` in a test delegating handler.
+
+---
+
+## `ReflectionTestUtils` — Setting `@Value` fields in unit tests
+
+```java
+@BeforeEach
+void setUp() {
+    ReflectionTestUtils.setField(authService, "googleClientId", "test-client-id");
+}
+```
+
+Spring's `@Value` fields are injected by the Spring context, but unit tests using `@InjectMocks` bypass Spring entirely. `ReflectionTestUtils.setField()` sets private fields via reflection so the unit under test behaves as if the value was injected.
+
+C# equivalent: using `typeof(MyService).GetField("_field", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(instance, "value")` — or redesigning to pass the value through the constructor.
 
 ---
 

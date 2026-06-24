@@ -96,19 +96,19 @@ Configure the `SecurityFilterChain`. Implement the filter that validates JWTs on
 ---
 
 ### EP1-06: Google OAuth2 login and JWT issuance
-**Depends on:** EP1-04, EP1-05 | **Parallel with:** EP1-07
+**Depends on:** EP1-04, EP1-05 | **Parallel with:** EP1-07 | **Status: Complete**
 
 Implement the full auth flow: Google redirect → callback → upsert user → issue JWT pair.
 
 **AC:**
-- [ ] `GET /auth/google` redirects to Google's OAuth2 consent screen
-- [ ] `GET /auth/google/callback` exchanges code for Google profile, upserts `users` row (insert or update on `oauth_id`), issues access JWT (15min) + refresh token (UUID stored in Redis with 7d TTL)
-- [ ] JWT payload: `sub` (user UUID), `household_id` (null if no household yet), `role`, `exp`
-- [ ] `POST /auth/refresh`: validates refresh token in Redis → issues new access JWT + rotates refresh token; old token deleted
-- [ ] `POST /auth/logout`: deletes refresh token from Redis
-- [ ] `GET /auth/me`: returns current user profile (requires valid JWT)
-- [ ] Unit tests: JWT encode/decode round-trip, expiry, tampered payload; mock Google token exchange
-- [ ] Integration test (Testcontainers): mock Google callback → user upserted in DB → JWT returned → `/auth/me` returns correct profile
+- [x] `GET /auth/google` redirects to Google's OAuth2 consent screen
+- [x] `GET /auth/google/callback` exchanges code for Google profile, upserts `users` row (insert or update on `oauth_id`), issues access JWT (15min) + refresh token (UUID stored in Redis with 7d TTL)
+- [x] JWT payload: `sub` (user UUID), `household_id` (null if no household yet), `role`, `exp`
+- [x] `POST /auth/refresh`: validates refresh token in Redis → issues new access JWT + rotates refresh token; old token deleted
+- [x] `POST /auth/logout`: deletes refresh token from Redis
+- [x] `GET /auth/me`: returns current user profile (requires valid JWT)
+- [x] Unit tests: JWT encode/decode round-trip, expiry, tampered payload; mock Google token exchange
+- [x] Integration test (Testcontainers): mock Google callback → user upserted in DB → JWT returned → `/auth/me` returns correct profile
 
 ---
 

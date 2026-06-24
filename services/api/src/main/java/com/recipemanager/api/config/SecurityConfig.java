@@ -26,10 +26,18 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
+            // Disable Spring's built-in OAuth2 login filter chain — we handle the Google
+            // OAuth dance manually in AuthController/AuthServiceImpl via RestTemplate.
+            // Without this, OAuth2LoginAuthenticationFilter intercepts /auth/google/callback
+            // and tries to process it itself, causing a 500 before the request reaches us.
+            // C# equivalent: not calling AddAuthentication().AddGoogle(...) in Program.cs.
+            .oauth2Login(oauth2 -> oauth2.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                .requestMatchers("/auth/**").permitAll()
+                // Only the pre-authentication endpoints are public. /auth/me requires a
+                // valid JWT, so it must NOT be matched by this wildcard.
+                .requestMatchers("/auth/google", "/auth/google/callback", "/auth/refresh", "/auth/logout").permitAll()
                 .anyRequest().authenticated()
             )
             // Insert JwtAuthFilter before Spring's UsernamePasswordAuthenticationFilter.

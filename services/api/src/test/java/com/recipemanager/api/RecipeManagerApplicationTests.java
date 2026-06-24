@@ -6,6 +6,7 @@ import com.recipemanager.api.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 // Loads the full Spring application context.
@@ -26,6 +27,10 @@ class RecipeManagerApplicationTests {
     @MockBean private HouseholdRepository householdRepository;
     @MockBean private HouseholdMemberRepository householdMemberRepository;
     @MockBean private UserRepository userRepository;
+
+    // application-test.yml also excludes RedisAutoConfiguration, so AuthServiceImpl's
+    // StringRedisTemplate dependency needs the same treatment.
+    @MockBean private StringRedisTemplate stringRedisTemplate;
 
     @Test
     void contextLoads() {
