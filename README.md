@@ -22,8 +22,9 @@ A multi-user meal planning platform that scrapes and parses recipes from any URL
 | Search | Elasticsearch | Faceted recipe search by ingredient, occasion, complexity, cook time |
 | Vector DB | Qdrant | Self-hosted; semantic recipe search and ingredient embeddings |
 | Queue | RabbitMQ | Scraping job queue; simpler ops than Kafka at this scale |
-| Embeddings | Ollama (local) | High-volume embedding generation without API cost |
-| LLM | Claude API (Anthropic) | Recipe parsing, NL meal planning agent, ingredient substitution |
+| Embeddings | Ollama (`nomic-embed-text`, local) | High-volume embedding generation without API cost |
+| Local reasoning LLM | Ollama (`qwen2.5:14b`, local) | RAG response generation, ingredient substitution — bounded context tasks; no per-call cost |
+| Cloud LLM | Claude API — Haiku 4.5 | Recipe parsing (~$0.006/URL) and NL meal planner agent — tasks that require reliable structured output or multi-step tool-calling |
 | Containerization | Docker + Docker Compose | Single-command local setup |
 | CI/CD | GitHub Actions | Lint, test, build, push on every PR |
 
@@ -64,7 +65,7 @@ GraphQL playground at `http://localhost:8000/graphql`
 ```
 recipe_manager/
 ├── services/
-│   ├── api/          # FastAPI — REST + GraphQL endpoints
+│   ├── api/          # Spring Boot — REST + GraphQL endpoints
 │   ├── scraper/      # URL fetching + LLM recipe parsing
 │   ├── ai/           # RAG pipeline, semantic search, NL agent
 │   └── worker/       # RabbitMQ consumer for background jobs

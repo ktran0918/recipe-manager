@@ -246,7 +246,7 @@ Fetch raw HTML from any URL. Handle JS-rendered pages.
 Send extracted article text to Claude with a strict JSON schema tool. Validate output with Guardrails AI.
 
 **AC:**
-- [ ] `anthropic.messages.create` call with `tools=[recipe_extraction_tool]` (JSON schema matching `docs/schema.md` recipe structure)
+- [ ] `anthropic.messages.create` call with `model="claude-haiku-4-5-20251001"` and `tools=[recipe_extraction_tool]` (JSON schema matching `docs/schema.md` recipe structure); escalate to `claude-sonnet-4-6` only if Haiku fails Guardrails validation repeatedly on messy source HTML
 - [ ] Extraction schema includes an optional `substitutions` array: each entry has `original_ingredient_name`, `substitute_ingredient_name`, `conversion_ratio` (default 1.0), `notes` — Claude extracts these from recipe text (e.g. "you can use Greek yogurt instead of sour cream")
 - [ ] System prompt committed as a constant (not inline string)
 - [ ] Guardrails AI validator: required fields present, `servings > 0`, `cook_time_minutes >= 0`, at least one ingredient, at least one step, all ingredient quantities parseable as numbers
@@ -490,7 +490,7 @@ Build the retrieval pipeline without frameworks first. This is the learning-firs
 
 **AC:**
 - [ ] `POST /internal/search`: embeds query via Ollama → cosine similarity search in Qdrant (top-k=10) → fetch recipe metadata from PostgreSQL for top-k IDs → apply optional pantry availability filter → return ranked results with scores
-- [ ] `POST /internal/can-make`: same pipeline, filter hard-constrained to pantry-available recipes; inject pantry context into Claude prompt for response generation
+- [ ] `POST /internal/can-make`: same pipeline, filter hard-constrained to pantry-available recipes; inject top-k context into local model prompt (Ollama `qwen2.5:14b`) for natural language response generation
 - [ ] Embed + retrieve functions are pure, independently testable (no side effects)
 - [ ] Unit tests: fixture Qdrant response → correct ranking; pantry filter correctly excludes recipes with shortages
 - [ ] Integration test (Testcontainers + Qdrant): insert 3 fixture recipe vectors → query → correct top-k returned
@@ -520,7 +520,7 @@ Refactor the from-scratch RAG pipeline to use LlamaIndex. Verify output matches.
 - [ ] Custom `RecipeNodeParser` to chunk recipe documents (title, ingredients, steps as separate nodes)
 - [ ] `RetrieverQueryEngine` with a custom prompt template matching the from-scratch system prompt
 - [ ] Regression test: same 10 queries run against both implementations; results within acceptable similarity threshold (at least 8/10 same top-3 recipes)
-- [ ] `docs/adr/007-rag-framework.md` written documenting what LlamaIndex abstracted
+- [ ] `docs/adr/008-rag-framework.md` written documenting what LlamaIndex abstracted
 
 ---
 
@@ -530,7 +530,7 @@ Refactor the from-scratch RAG pipeline to use LlamaIndex. Verify output matches.
 LangChain ReAct agent with four tools. Writes the meal plan via the API service.
 
 **AC:**
-- [ ] `POST /internal/meal-plan` (AI service): ReAct agent with tools: `search_recipes(query, filters)`, `query_pantry()`, `check_schedule(week)`, `write_meal_plan(entries)` — `write_meal_plan` calls back to the Spring Boot API's internal meal plan endpoint
+- [ ] `POST /internal/meal-plan` (AI service): ReAct agent backed by `claude-haiku-4-5-20251001` with tools: `search_recipes(query, filters)`, `query_pantry()`, `check_schedule(week)`, `write_meal_plan(entries)` — `write_meal_plan` calls back to the Spring Boot API's internal meal plan endpoint
 - [ ] Agent loop capped at 10 steps; returns partial result + warning if cap hit
 - [ ] Guardrails validation on agent-produced entries before `write_meal_plan` executes: all `recipe_id` values exist, `planned_date` within requested week, no duplicate meal type per day
 - [ ] Structured logging: every agent step (thought, action, observation) logged at DEBUG level
@@ -542,9 +542,9 @@ LangChain ReAct agent with four tools. Writes the meal plan via the API service.
 **Depends on:** EP6-03 | **Parallel with:** EP6-05
 
 **AC:**
-- [ ] `POST /internal/substitute` (AI service): few-shot Claude prompt with 3 examples; returns up to 3 substitutes with quantity, unit, notes, and `in_pantry` flag
+- [ ] `POST /internal/substitute` (AI service): few-shot prompt to Ollama `qwen2.5:14b` with 3 examples; returns up to 3 substitutes with quantity, unit, notes, and `in_pantry` flag
 - [ ] LLM Guard scans `query` fields in `/internal/search` and `/internal/can-make` for prompt injection; rejects with 400 if detected
-- [ ] Observability: log Claude API latency, input tokens, output tokens, and agent step count per request (structured JSON; no PII logged)
+- [ ] Observability: log Claude API latency + token usage per call (recipe parsing, agent); log Ollama response latency per call (RAG, substitution); all structured JSON, no PII
 - [ ] Unit test: fixture substitution response parsed correctly; prompt injection fixture string → 400 returned
 
 ---

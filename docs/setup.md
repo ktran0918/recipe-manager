@@ -87,16 +87,21 @@ curl -s http://localhost:6333/readyz              # → {"status":"ok"}
 
 ---
 
-## 3. Pull the Ollama embedding model
+## 3. Pull Ollama models
 
 Ollama runs on the host machine and is required by the scraper and AI services (Phase 2+). Skip this step if you're only working on Phase 1.
 
 ```bash
-ollama serve          # if not already running as a background service
-ollama pull nomic-embed-text
+ollama serve                    # if not already running as a background service
+ollama pull nomic-embed-text    # embedding model — required from Phase 2
+ollama pull qwen2.5:14b         # local reasoning model — required from Phase 6
 ```
 
-Verify: `curl http://localhost:11434/api/tags` should list `nomic-embed-text`.
+`nomic-embed-text` is ~274 MB. `qwen2.5:14b` is ~9 GB (Q4 quantised) — allow time for the download.
+
+`qwen2.5:14b` handles RAG response generation and ingredient substitution locally. It uses the iGPU on Linux via ROCm if available, falling back to CPU otherwise. See `docs/adr/007-local-vs-cloud-llm-boundary.md`.
+
+Verify: `curl http://localhost:11434/api/tags` should list both models.
 
 ---
 

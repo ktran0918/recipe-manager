@@ -53,10 +53,10 @@ Built as a learning and portfolio project. Goals: practice backend and AI/ML eng
 - Export: PDF and Apple Notes plain-text format
 
 ### AI Layer (Phase 6)
-- **Semantic recipe search:** embed query → cosine similarity search in Qdrant → Claude generates natural language response
-- **"What can I make tonight?":** pantry-aware semantic search
-- **NL meal planner agent:** LangChain ReAct agent with 4 tools (search_recipes, query_pantry, check_schedule, write_meal_plan) — accepts a natural language prompt, creates a meal plan
-- **On-demand substitution suggestions:** few-shot Claude prompt for ingredient substitutions; saved back to `recipe_ingredient_substitutions` with `source='ai'`
+- **Semantic recipe search:** embed query via Ollama → cosine similarity search in Qdrant → ranked results returned directly (no LLM generation step)
+- **"What can I make tonight?":** pantry-aware semantic search; context injected into local model (Ollama `qwen2.5:14b`) for natural language response
+- **NL meal planner agent:** LangChain ReAct agent backed by Claude Haiku with 4 tools (search_recipes, query_pantry, check_schedule, write_meal_plan) — accepts a natural language prompt, creates a meal plan
+- **On-demand substitution suggestions:** few-shot local model prompt (Ollama `qwen2.5:14b`) for ingredient substitutions; saved back to `recipe_ingredient_substitutions` with `source='ai'`
 - RAG pipeline built from scratch first, then refactored to LlamaIndex (intentional learning exercise)
 
 ### Nutrition
@@ -79,7 +79,8 @@ Built as a learning and portfolio project. Goals: practice backend and AI/ML eng
 | Full-text search | Elasticsearch 8.13 | Faceted recipe search (occasion, complexity, cuisine, cook time) |
 | Vector DB | Qdrant | Semantic recipe search; Chroma locally for zero-config dev |
 | Embeddings | Ollama (`nomic-embed-text`) | Local — not cloud API; cost justified at household scale |
-| LLM | Claude API (Anthropic) | Recipe parsing (~$0.02–0.03/URL at Sonnet pricing), NL agent, substitution suggestions |
+| Local reasoning LLM | Ollama (`qwen2.5:14b`) | RAG response generation, ingredient substitution — bounded context tasks that don't need cloud |
+| Cloud LLM | Claude API — `claude-haiku-4-5-20251001` | Recipe parsing (~$0.006/URL) and NL meal planner agent (multi-step tool-calling requires cloud reliability) |
 | Containerization | Docker Compose | All infra + app services; production via docker-compose.prod.yml |
 
 The API/Python split is intentional: Java enforces OOP and DI discipline where it matters; Python has first-class support for the AI/ML tooling (official Anthropic SDK, LangChain, LlamaIndex). Services communicate over HTTP and RabbitMQ only — the languages are fully independent.

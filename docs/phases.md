@@ -84,9 +84,10 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
 - [ ] Content extractor: trafilatura (strips nav, ads, boilerplate)
 - [ ] Claude API integration: structured output with recipe schema including optional `substitutions[]` array (extracted from recipe text)
   ```python
-  # Claude call with strict JSON schema
+  # Haiku handles structured extraction reliably at ~10-20x lower cost than Sonnet/Opus.
+  # Escalate to claude-sonnet-4-6 only if quality degrades on messy food blog HTML.
   response = anthropic.messages.create(
-      model="claude-opus-4-6",
+      model="claude-haiku-4-5-20251001",
       system=RECIPE_PARSER_SYSTEM_PROMPT,
       messages=[{"role": "user", "content": raw_text}],
       tools=[recipe_extraction_tool],  # tool with JSON schema
@@ -241,7 +242,7 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
   3. Store in Qdrant
   4. Query: embed input → cosine similarity search → return top-k recipe IDs
   5. Fetch recipe details from PostgreSQL
-  6. Inject into Claude prompt → generate response
+  6. Inject top-k context into local model prompt (Ollama `qwen2.5:14b`) → generate response
 - [ ] `POST /ai/search` — natural language recipe search
 - [ ] `POST /ai/can-make` — "what can I make tonight?" with pantry awareness
 
@@ -261,14 +262,15 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
   - `query_pantry()` → reads current pantry state
   - `check_schedule(week)` → reads existing meal plan entries
   - `write_meal_plan(entries)` → creates meal plan entries
+  - Model: `claude-haiku-4-5-20251001` — local models fail reliably at multi-step tool-calling; Haiku is the cheapest cloud option with acceptable agentic reliability
 - [ ] `POST /ai/meal-plan` — NL prompt → agent → meal plan created
 - [ ] Guardrails: validate agent-produced meal plan against schema before writing
 
 ### Week 4 — Remaining AI Features
 
-- [ ] `POST /ai/substitute` — few-shot Claude prompt for ingredient substitution
-- [ ] Add AI Safety: LLM Guard on user-provided `query` fields (prompt injection scan)
-- [ ] Observability: log Claude API latency, token usage, agent step count per request
+- [ ] `POST /ai/substitute` — few-shot prompt for ingredient substitution via local model (Ollama `qwen2.5:14b`); context is small and bounded, no cloud needed
+- [ ] Add AI Safety: LLM Guard on user-provided `query` fields (prompt injection scan; runs locally)
+- [ ] Observability: log Claude API latency + token usage (recipe parsing, agent), and local model latency (RAG, substitution) per request
 
 **Definition of done:** "Plan me 5 weeknight dinners under 45 minutes using what I have, no seafood" → agent creates a meal plan → shopping list generated → PDF exported.
 

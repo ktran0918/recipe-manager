@@ -37,8 +37,8 @@ flowchart TD
 
     subgraph AIService["AI Service — Python"]
         direction LR
-        Ollama["Ollama (local) — embedding generation"]
-        Claude["Claude API (cloud) — reasoning · parsing · planning"]
+        Ollama["Ollama (local) — embeddings — RAG responses — substitutions"]
+        Claude["Claude API (cloud) — recipe parsing — NL meal planner agent"]
     end
 
     Scraper -->|embed| Qdrant
@@ -75,11 +75,11 @@ Pipeline per job:
 Handles all LLM-powered features that require retrieval or multi-step reasoning.
 
 Features:
-- **Semantic search**: embed query → Qdrant similarity search → return ranked recipes
-- **RAG pipeline**: retrieve relevant recipes/context → inject into Claude prompt → generate response
-- **NL meal planner agent**: LangChain ReAct agent with tools: `search_recipes`, `query_pantry`, `check_schedule`, `write_meal_plan`
-- **Ingredient substitution**: few-shot prompted Claude call
-- **Shopping list optimization**: Claude call to consolidate ingredients across recipes
+- **Semantic search** (local): embed query via Ollama `nomic-embed-text` → Qdrant similarity search → return ranked recipes. No LLM generation step — results are returned directly.
+- **RAG pipeline** (local): retrieve top-k recipes from Qdrant → inject context into Ollama `qwen2.5:14b` → generate natural language response. Used for "what can I make tonight?" and open-ended queries.
+- **NL meal planner agent** (cloud): LangChain ReAct agent backed by `claude-haiku-4-5-20251001` with tools: `search_recipes`, `query_pantry`, `check_schedule`, `write_meal_plan`. Cloud required for reliable multi-step tool-calling.
+- **Ingredient substitution** (local): few-shot prompt to Ollama `qwen2.5:14b`. Context is small and bounded; local quality is sufficient.
+- **Shopping list consolidation** (algorithmic): unit conversion + quantity aggregation across recipes. No LLM required.
 
 ### Worker Service (`services/worker/`) — Python 3.12
 Handles scheduled and periodic background jobs (separate from scrape jobs).
@@ -100,6 +100,7 @@ See `docs/adr/` for full reasoning. Summary:
 | Message broker | RabbitMQ | Kafka — simpler ops; Kafka overkill at this scale |
 | Recipe parsing | Claude API (LLM) | HTML scraper — too brittle across different site formats |
 | Embedding model | Ollama (local) | OpenAI Embeddings API — volume makes API cost add up |
+| LLM boundary | Cloud (Haiku) for recipe parsing + NL agent; local (qwen2.5:14b) for RAG responses + substitutions | All cloud — cost and latency; all local — unreliable tool-calling for the agent |
 | Vector DB | Qdrant | Pinecone — self-hostable; no cloud dependency |
 | Search | Elasticsearch | PostgreSQL FTS — better faceting, fuzzy match, relevance tuning |
 | RAG framework | From scratch first, then LlamaIndex | LlamaIndex only — need to understand the pipeline before abstracting it |
