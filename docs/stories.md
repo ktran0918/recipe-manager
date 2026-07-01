@@ -147,26 +147,13 @@ Service + controller for manual recipe management. Recipes scoped to `household_
 
 ---
 
-### EP1-09: Phase 1 end-to-end integration test
-**Depends on:** EP1-06, EP1-07, EP1-08
-
-Verify the complete Phase 1 definition of done with a single runnable test suite.
-
-**AC:**
-- [ ] Testcontainers integration test: authenticate via mocked OAuth → create household → create recipe with 3 ingredients → list recipes → retrieve recipe detail → verify ingredients and steps correct
-- [ ] All Testcontainers (PostgreSQL, Redis) spin up cleanly; test is not flaky
-- [ ] `docker-compose up` → Swagger UI at `/swagger-ui.html` → perform the above steps manually ✓
-- [ ] CI passes green end-to-end
-
----
-
-### EP1-10: Recipe selection state
-**Depends on:** EP1-08 | **Parallel with:** nothing
+### EP1-09: Recipe selection state
+**Depends on:** EP1-08 | **Parallel with:** EP1-10
 
 Redis-backed per-user cook selection. No DB writes — Redis only.
 
 **AC:**
-- [ ] `POST /recipes/:id/select`: validates recipe belongs to caller's household; writes `cook:selection:{user_id}` hash (`recipe_id`, `selected_at`) to Redis with 24h TTL; replaces any existing selection; returns the cook-mode view (calls EP1-11 logic internally)
+- [ ] `POST /recipes/:id/select`: validates recipe belongs to caller's household; writes `cook:selection:{user_id}` hash (`recipe_id`, `selected_at`) to Redis with 24h TTL; replaces any existing selection; returns the cook-mode view (calls EP1-10 logic internally)
 - [ ] `DELETE /recipes/selection`: deletes `cook:selection:{user_id}` from Redis; 204 if nothing selected (idempotent)
 - [ ] `GET /recipes/selection`: returns `{recipe_id, selected_at}` if key exists, `{recipe_id: null}` otherwise
 - [ ] Unit tests: select → Redis key written; deselect → key deleted; get with no key → null returned
@@ -174,8 +161,8 @@ Redis-backed per-user cook selection. No DB writes — Redis only.
 
 ---
 
-### EP1-11: Cook mode view endpoint
-**Depends on:** EP1-08, EP1-03 (recipe_nutrition migration must exist even if empty) | **Parallel with:** EP1-10
+### EP1-10: Cook mode view endpoint
+**Depends on:** EP1-08, EP1-03 (recipe_nutrition migration must exist even if empty) | **Parallel with:** EP1-09
 
 Returns a condensed recipe view with only essential fields. Nutrition is null until Phase 2 populates it.
 
@@ -185,6 +172,19 @@ Returns a condensed recipe view with only essential fields. Nutrition is null un
 - [ ] Non-essential fields (`description`, `image_url`, `occasions`, `cuisine`, `diet_tags`, `complexity`) are excluded from the response
 - [ ] `servings` param defaults to recipe's default servings if omitted
 - [ ] MockMvc integration tests: correct fields returned; excluded fields absent; ingredient quantities scaled correctly; nutrition null when no row exists; source_url present for scraped recipe, null for manual
+
+---
+
+### EP1-11: Phase 1 end-to-end integration test
+**Depends on:** EP1-06, EP1-07, EP1-08, EP1-09, EP1-10
+
+Verify the complete Phase 1 definition of done with a single runnable test suite.
+
+**AC:**
+- [ ] Testcontainers integration test: authenticate via mocked OAuth → create household → create recipe with 3 ingredients → list recipes → retrieve recipe detail → verify ingredients and steps correct
+- [ ] All Testcontainers (PostgreSQL, Redis) spin up cleanly; test is not flaky
+- [ ] `docker-compose up` → Swagger UI at `/swagger-ui.html` → perform the above steps manually ✓
+- [ ] CI passes green end-to-end
 
 ---
 
