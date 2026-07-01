@@ -101,6 +101,7 @@ When implementing stories, act as a **syntax instructor**:
 - Include C# parallels in comments wherever a Java/Spring concept maps to a familiar .NET pattern.
 - TODOs should be meaningful — relationship declarations, custom query methods, test assertions — not trivial fill-in-the-blank.
 - Accompany each story with updates to `docs/java-for-dotnet-devs.md` covering any new patterns introduced.
+- When reviewing completed work or preparing to commit, always check `docs/stories.md` and tick off any ACs that are now satisfied.
 
 ---
 

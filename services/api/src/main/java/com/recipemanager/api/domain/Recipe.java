@@ -108,6 +108,8 @@ public class Recipe {
     public OffsetDateTime getParsedAt() { return parsedAt; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public List<RecipeIngredient> getIngredients() { return ingredients; }
+    public List<RecipeStep> getSteps() { return steps; }
 
     public void setHouseholdId(UUID householdId) { this.householdId = householdId; }
     public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }

@@ -136,14 +136,14 @@ Service + controller layer for household management. Uses `@AuthenticationPrinci
 Service + controller for manual recipe management. Recipes scoped to `household_id`.
 
 **AC:**
-- [ ] `POST /recipes`: creates recipe with nested ingredients + steps in one transaction; returns 201 with full recipe representation
-- [ ] `GET /recipes`: lists recipes for caller's household; supports `q` param (PostgreSQL ILIKE on title + description via JPQL); paginated (`page`, `per_page`)
-- [ ] `GET /recipes/:id`: returns recipe with full ingredient + step detail; 404 if not in caller's household
-- [ ] `PATCH /recipes/:id`: partial update of recipe metadata; household-scoped; 404 on wrong household
-- [ ] `DELETE /recipes/:id`: deletes recipe + cascaded ingredients + steps; household-scoped
-- [ ] `RecipeService` interface + `RecipeServiceImpl`; controller depends on interface
-- [ ] `GET /recipes/:id?servings=2`: returns ingredient quantities scaled to requested servings (multiplier applied in service layer)
-- [ ] MockMvc integration tests: full CRUD; cross-household access returns 404; keyword filter returns correct subset; serving size scaling is accurate
+- [x] `POST /recipes`: creates recipe with nested ingredients + steps in one transaction; returns 201 with full recipe representation
+- [x] `GET /recipes`: lists recipes for caller's household; supports `q` param (PostgreSQL ILIKE on title + description via JPQL); paginated (`page`, `per_page`)
+- [x] `GET /recipes/:id`: returns recipe with full ingredient + step detail; 404 if not in caller's household
+- [x] `PATCH /recipes/:id`: partial update of recipe metadata; household-scoped; 404 on wrong household
+- [x] `DELETE /recipes/:id`: deletes recipe + cascaded ingredients + steps; household-scoped
+- [x] `RecipeService` interface + `RecipeServiceImpl`; controller depends on interface
+- [x] `GET /recipes/:id?servings=2`: returns ingredient quantities scaled to requested servings (multiplier applied in service layer)
+- [x] MockMvc integration tests: full CRUD; cross-household access returns 404; keyword filter returns correct subset; serving size scaling is accurate
 
 ---
 

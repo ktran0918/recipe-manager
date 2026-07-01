@@ -2,6 +2,10 @@ package com.recipemanager.api;
 
 import com.recipemanager.api.repository.HouseholdMemberRepository;
 import com.recipemanager.api.repository.HouseholdRepository;
+import com.recipemanager.api.repository.IngredientRepository;
+import com.recipemanager.api.repository.RecipeIngredientRepository;
+import com.recipemanager.api.repository.RecipeRepository;
+import com.recipemanager.api.repository.RecipeStepRepository;
 import com.recipemanager.api.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +31,10 @@ class RecipeManagerApplicationTests {
     @MockBean private HouseholdRepository householdRepository;
     @MockBean private HouseholdMemberRepository householdMemberRepository;
     @MockBean private UserRepository userRepository;
+    @MockBean private RecipeRepository recipeRepository;
+    @MockBean private RecipeIngredientRepository recipeIngredientRepository;
+    @MockBean private RecipeStepRepository recipeStepRepository;
+    @MockBean private IngredientRepository ingredientRepository;
 
     // application-test.yml also excludes RedisAutoConfiguration, so AuthServiceImpl's
     // StringRedisTemplate dependency needs the same treatment.

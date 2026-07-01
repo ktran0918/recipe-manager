@@ -626,4 +626,121 @@ C# equivalent: using `typeof(MyService).GetField("_field", BindingFlags.NonPubli
 
 ---
 
+## `@RequestParam` — query string parameters
+
+```java
+@GetMapping
+public ResponseEntity<List<RecipeResponse>> listRecipes(
+        @RequestParam(required = false) String q,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(name = "per_page", defaultValue = "20") int perPage) { ... }
+```
+
+`@RequestParam` binds HTTP query parameters (`?q=pasta&page=2&per_page=10`) to method arguments. C# equivalent: `[FromQuery]`.
+
+| Attribute | Meaning | C# equivalent |
+|---|---|---|
+| `required = false` | param is optional; method receives `null` if absent | `string? q` |
+| `defaultValue = "1"` | fallback when param is missing | `int page = 1` |
+| `name = "per_page"` | maps `per_page` (URL) → `perPage` (Java param) | `[FromQuery(Name = "per_page")]` |
+
+Spring automatically converts the string to the declared type — `int`, `BigDecimal`, `UUID`, etc.
+
+---
+
+## Spring Data JPA — custom queries with `@Query`
+
+When the derived query naming convention can't express what you need (e.g. ILIKE, OR conditions), use `@Query` with JPQL:
+
+```java
+@Query("SELECT r FROM Recipe r " +
+       "WHERE r.householdId = :householdId " +
+       "AND (LOWER(r.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+       "     OR LOWER(r.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+Page<Recipe> findByHouseholdIdAndKeyword(
+        @Param("householdId") UUID householdId,
+        @Param("keyword") String keyword,
+        Pageable pageable);
+```
+
+**JPQL operates on entity class names and field names, not table/column names.** `Recipe` is the class; `r.title` is the Java field — not `recipes.title`.
+
+JPQL has no `ILIKE`. The workaround `LOWER(...) LIKE LOWER(...)` produces a case-insensitive match that works on any JDBC-compliant DB. If you need true PostgreSQL `ILIKE` for performance on large tables, switch to `nativeQuery = true` and write raw SQL.
+
+Named parameters (`:keyword`) require `@Param("keyword")` on the method argument. The `Pageable` parameter is handled automatically and does not appear in the JPQL.
+
+C# equivalent: LINQ `.Where(r => EF.Functions.ILike(r.Title, $"%{keyword}%") || ...)`.
+
+---
+
+## Spring Data JPA — pagination with `Pageable` and `Page<T>`
+
+```java
+// Repository — Spring Data derives a paginated query from the method name
+Page<Recipe> findByHouseholdId(UUID householdId, Pageable pageable);
+
+// Service — construct a Pageable and extract results
+PageRequest pageable = PageRequest.of(page - 1, perPage);   // 0-based page index
+Page<Recipe> results = recipeRepository.findByHouseholdId(householdId, pageable);
+List<Recipe> content = results.getContent();                 // just the rows
+long total = results.getTotalElements();                     // total matching rows across all pages
+```
+
+`PageRequest.of(index, size)` is the concrete `Pageable` implementation. **Page numbers are 0-based in Spring Data** — subtract 1 when your API uses 1-based pages.
+
+`Page<T>` wraps the result slice with metadata:
+| Method | Returns |
+|---|---|
+| `getContent()` | `List<T>` — the current page's rows |
+| `getTotalElements()` | total rows across all pages |
+| `getTotalPages()` | number of pages at current size |
+| `getNumber()` | current page index (0-based) |
+
+C# equivalent: `queryable.Skip((page - 1) * perPage).Take(perPage).ToList()` with a separate `.Count()` for totals — Spring wraps both into one object.
+
+---
+
+## `BigDecimal` — exact decimal arithmetic
+
+Java's `BigDecimal` is the equivalent of C#'s `decimal`. The critical difference is that `BigDecimal.divide()` **requires an explicit scale and `RoundingMode`** — otherwise it throws `ArithmeticException` on non-terminating decimals (e.g. 1/3):
+
+```java
+// C#: decimal scaleFactor = requested / recipe.Servings;  (no extra args needed)
+
+// Java — must specify scale (decimal places to keep) and how to round:
+BigDecimal scaleFactor = requestedServings.divide(recipe.getServings(), 6, RoundingMode.HALF_UP);
+BigDecimal scaled = ingredient.getQuantity()
+        .multiply(scaleFactor)
+        .setScale(2, RoundingMode.HALF_UP);   // round display value to 2 decimal places
+```
+
+`RoundingMode.HALF_UP` is the familiar "school rounding" (0.5 rounds up). Use it for displayed quantities. Use `RoundingMode.UNNECESSARY` only when you know the result is exact — it throws if rounding would be required.
+
+**Never use `==` or `equals()` to compare two `BigDecimal` values for numeric equality** — `new BigDecimal("4")` and `new BigDecimal("4.0")` are `equals`-unequal because they have different scales. Use `.compareTo()` instead: `a.compareTo(b) == 0`.
+
+---
+
+## Mockito — `verify()` for asserting calls
+
+`when(...).thenReturn(...)` stubs what a mock returns. `verify()` asserts that the mock was actually called with specific arguments — useful when the method return value is `void`, or when you want to confirm the right arguments reached the dependency:
+
+```java
+// Stub
+when(recipeService.listRecipes(HOUSEHOLD_ID, "pasta", 1, 20))
+        .thenReturn(List.of(recipeResponse("Garlic Pasta")));
+
+// Act
+mockMvc.perform(get("/recipes?q=pasta").with(asMember()))
+        .andExpect(status().isOk());
+
+// Assert the service was called with exactly these arguments
+verify(recipeService).listRecipes(HOUSEHOLD_ID, "pasta", 1, 20);
+```
+
+`verify(mock)` asserts exactly one call. Use `verify(mock, times(2))` for two calls, `verify(mock, never())` to assert no call happened.
+
+C# equivalent: `mock.Verify(s => s.ListRecipes(householdId, "pasta", 1, 20), Times.Once())`.
+
+---
+
 *This doc grows as new patterns appear during development.*
