@@ -167,11 +167,11 @@ Redis-backed per-user cook selection. No DB writes — Redis only.
 Returns a condensed recipe view with only essential fields. Nutrition is null until Phase 2 populates it.
 
 **AC:**
-- [ ] `GET /recipes/:id/cook-mode?servings=N`: loads recipe + ingredients + steps + nutrition (if present); scales all ingredient quantities by `requestedServings / recipe.servings`; 404 if recipe not in caller's household
-- [ ] Response shape matches `docs/api.md`: `recipe_id`, `title`, `prep_time_minutes`, `cook_time_minutes`, `servings`, `ingredients[]`, `directions[]` (original step instructions in order), `nutrition` (null if no row), `source_url` (null for manual recipes)
-- [ ] Non-essential fields (`description`, `image_url`, `occasions`, `cuisine`, `diet_tags`, `complexity`) are excluded from the response
-- [ ] `servings` param defaults to recipe's default servings if omitted
-- [ ] MockMvc integration tests: correct fields returned; excluded fields absent; ingredient quantities scaled correctly; nutrition null when no row exists; source_url present for scraped recipe, null for manual
+- [x] `GET /recipes/:id/cook-mode?servings=N`: loads recipe + ingredients + steps + nutrition (if present); scales all ingredient quantities by `requestedServings / recipe.servings`; 404 if recipe not in caller's household
+- [x] Response shape matches `docs/api.md`: `recipe_id`, `title`, `prep_time_minutes`, `cook_time_minutes`, `servings`, `ingredients[]`, `directions[]` (original step instructions in order), `nutrition` (null if no row), `source_url` (null for manual recipes)
+- [x] Non-essential fields (`description`, `image_url`, `occasions`, `cuisine`, `diet_tags`, `complexity`) are excluded from the response
+- [x] `servings` param defaults to recipe's default servings if omitted
+- [x] MockMvc integration tests: correct fields returned; excluded fields absent; ingredient quantities scaled correctly; nutrition null when no row exists; source_url present for scraped recipe, null for manual
 
 ---
 

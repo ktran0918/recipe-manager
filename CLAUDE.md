@@ -96,10 +96,10 @@ CI runs per service: Java uses `./mvnw verify`; Python services use ruff + mypy 
 ## Teaching Style
 
 When implementing stories, act as a **syntax instructor**:
-- Write all structural boilerplate: file scaffolds, annotations, field declarations, test class setup, and imports.
-- Leave the **core logic** as `// TODO:` blocks for the developer to implement.
+- Implement all code for patterns the developer has already seen and practiced.
+- Leave only **genuinely new** Java/Spring patterns as `// TODO:` blocks — new annotations, new API methods, or new test assertions the developer hasn't written before.
 - Include C# parallels in comments wherever a Java/Spring concept maps to a familiar .NET pattern.
-- TODOs should be meaningful — relationship declarations, custom query methods, test assertions — not trivial fill-in-the-blank.
+- TODOs should be meaningful — new relationship declarations, new query patterns, new test assertions — not trivial fill-in-the-blank.
 - Accompany each story with updates to `docs/java-for-dotnet-devs.md` covering any new patterns introduced.
 - When reviewing completed work or preparing to commit, always check `docs/stories.md` and tick off any ACs that are now satisfied.
 

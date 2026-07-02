@@ -56,6 +56,16 @@ public class RecipeController {
         return ResponseEntity.ok(recipes);
     }
 
+    @GetMapping("/{id}/cook-mode")
+    public ResponseEntity<CookModeResponse> getCookMode(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID id,
+            @RequestParam(required = false) BigDecimal servings) {
+        requireHousehold(principal);
+        CookModeResponse response = recipeService.getCookMode(id, principal.householdId(), servings);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<RecipeResponse> getRecipe(
             @AuthenticationPrincipal UserPrincipal principal,

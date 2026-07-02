@@ -6,6 +6,7 @@ import com.recipemanager.api.domain.RecipeIngredient;
 import com.recipemanager.api.domain.RecipeStep;
 import com.recipemanager.api.repository.IngredientRepository;
 import com.recipemanager.api.repository.RecipeIngredientRepository;
+import com.recipemanager.api.repository.RecipeNutritionRepository;
 import com.recipemanager.api.repository.RecipeRepository;
 import com.recipemanager.api.repository.RecipeStepRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -29,15 +30,18 @@ public class RecipeServiceImpl implements RecipeService {
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepRepository recipeStepRepository;
     private final IngredientRepository ingredientRepository;
+    private final RecipeNutritionRepository recipeNutritionRepository;
 
     public RecipeServiceImpl(RecipeRepository recipeRepository,
                              RecipeIngredientRepository recipeIngredientRepository,
                              RecipeStepRepository recipeStepRepository,
-                             IngredientRepository ingredientRepository) {
+                             IngredientRepository ingredientRepository,
+                             RecipeNutritionRepository recipeNutritionRepository) {
         this.recipeRepository = recipeRepository;
         this.recipeIngredientRepository = recipeIngredientRepository;
         this.recipeStepRepository = recipeStepRepository;
         this.ingredientRepository = ingredientRepository;
+        this.recipeNutritionRepository = recipeNutritionRepository;
     }
 
     @Override
@@ -137,6 +141,33 @@ public class RecipeServiceImpl implements RecipeService {
         }).toList();
 
         return RecipeResponse.from(recipe, scaledIngredients);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CookModeResponse getCookMode(UUID id, UUID householdId, BigDecimal requestedServings) {
+        Recipe recipe = recipeRepository.findByIdAndHouseholdId(id, householdId)
+                .orElseThrow(() -> new EntityNotFoundException("Recipe not found"));
+
+        // Null servings defaults to the recipe's own serving size (scale factor = 1).
+        BigDecimal targetServings = requestedServings != null ? requestedServings : recipe.getServings();
+        BigDecimal scaleFactor = targetServings.divide(recipe.getServings(), 6, RoundingMode.HALF_UP);
+
+        List<CookModeIngredientResponse> ingredients = recipe.getIngredients().stream().map(ri -> {
+            BigDecimal scaled = ri.getQuantity() != null
+                    ? ri.getQuantity().multiply(scaleFactor).setScale(2, RoundingMode.HALF_UP)
+                    : null;
+            return CookModeIngredientResponse.from(ri).withQuantity(scaled);
+        }).toList();
+
+        // recipeNutritionRepository.findByRecipeId(recipe.getId()) returns Optional<RecipeNutrition>.
+        // Optional.map() transforms the value inside if present; orElse(null) unwraps to null
+        // when absent — resulting in a JSON null in the response body.
+        NutritionResponse nutrition = recipeNutritionRepository.findByRecipe(recipe)
+                .map(NutritionResponse::from)
+                .orElse(null);
+
+        return CookModeResponse.from(recipe, targetServings, ingredients, nutrition);
     }
 
     @Override
