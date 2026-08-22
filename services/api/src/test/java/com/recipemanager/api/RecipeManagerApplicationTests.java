@@ -7,8 +7,10 @@ import com.recipemanager.api.repository.RecipeIngredientRepository;
 import com.recipemanager.api.repository.RecipeNutritionRepository;
 import com.recipemanager.api.repository.RecipeRepository;
 import com.recipemanager.api.repository.RecipeStepRepository;
+import com.recipemanager.api.repository.ScrapeJobRepository;
 import com.recipemanager.api.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -37,10 +39,12 @@ class RecipeManagerApplicationTests {
     @MockBean private RecipeStepRepository recipeStepRepository;
     @MockBean private IngredientRepository ingredientRepository;
     @MockBean private RecipeNutritionRepository recipeNutritionRepository;
+    @MockBean private ScrapeJobRepository scrapeJobRepository;
 
-    // application-test.yml also excludes RedisAutoConfiguration, so AuthServiceImpl's
-    // StringRedisTemplate dependency needs the same treatment.
+    // application-test.yml also excludes RedisAutoConfiguration and AmqpAutoConfiguration,
+    // so these infrastructure beans need the same treatment.
     @MockBean private StringRedisTemplate stringRedisTemplate;
+    @MockBean private RabbitTemplate rabbitTemplate;
 
     @Test
     void contextLoads() {

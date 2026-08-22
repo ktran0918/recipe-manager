@@ -743,4 +743,90 @@ C# equivalent: `mock.Verify(s => s.ListRecipes(householdId, "pasta", 1, 20), Tim
 
 ---
 
+## Spring AMQP — publishing messages with `RabbitTemplate`
+
+Spring AMQP (`spring-boot-starter-amqp`) is the Spring abstraction over RabbitMQ. The central class is `RabbitTemplate` — injected like any other bean and used to publish messages.
+
+```java
+// Publish a message to the default exchange, routing by queue name.
+// RabbitTemplate serialises the object to JSON if Jackson2JsonMessageConverter is configured.
+rabbitTemplate.convertAndSend("", "scrape.jobs", new ScrapeJobMessage(jobId, url, householdId));
+//                             ^     ^               ^
+//                             |     routing key     payload (serialised to JSON)
+//                             exchange ("" = default exchange, routes by queue name)
+```
+
+C# equivalent: `IModel.BasicPublish("", "scrape.jobs", props, body)` in RabbitMQ.Client, or `IBus.Publish(message)` in MassTransit.
+
+Queue and exchange topology is declared as `@Bean` methods in a `@Configuration` class. Spring AMQP's `RabbitAdmin` picks these up and creates the queues/exchanges on the broker at startup — no manual broker setup needed:
+
+```java
+@Bean
+public Queue scrapeJobsQueue() {
+    // durable() = survives broker restarts (equivalent to durable: true in amqplib)
+    return QueueBuilder.durable("scrape.jobs")
+            .withArgument("x-dead-letter-exchange", "scrape.jobs.dlx")
+            .build();
+}
+
+@Bean
+public DirectExchange deadLetterExchange() {
+    return new DirectExchange("scrape.jobs.dlx");
+}
+
+@Bean
+public Binding deadLetterBinding(Queue deadLetterQueue, DirectExchange deadLetterExchange) {
+    // BindingBuilder reads like a sentence: bind this queue to this exchange with this routing key.
+    return BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with("scrape.jobs");
+}
+```
+
+The message converter must be configured explicitly — by default `RabbitTemplate` uses Java serialisation, which is opaque to the Python consumer:
+
+```java
+@Bean
+public MessageConverter jsonMessageConverter() {
+    return new Jackson2JsonMessageConverter();
+}
+
+@Bean
+public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
+    RabbitTemplate template = new RabbitTemplate(connectionFactory);
+    template.setMessageConverter(jsonMessageConverter());
+    return template;
+}
+```
+
+C# equivalent: configuring a custom serialiser in MassTransit (`UseJsonSerializer()`) or setting `ContentType = "application/json"` manually in RabbitMQ.Client.
+
+---
+
+## Redis — writing with TTL via `StringRedisTemplate`
+
+`StringRedisTemplate` is a pre-configured `RedisTemplate<String, String>` — both key and value are plain strings. Use `opsForValue()` to get the string operations interface:
+
+```java
+// SET key value EX 604800  (7 days in seconds)
+stringRedisTemplate.opsForValue().set(key, value, 7, TimeUnit.DAYS);
+
+// GET key — returns null if the key doesn't exist or has expired
+String stored = stringRedisTemplate.opsForValue().get(key);
+
+// Check existence without fetching the value
+Boolean exists = stringRedisTemplate.hasKey(key);
+```
+
+C# equivalent with StackExchange.Redis:
+```csharp
+db.StringSet(key, value, TimeSpan.FromDays(7));   // SET EX
+string stored = db.StringGet(key);                 // GET
+bool exists   = db.KeyExists(key);                 // EXISTS
+```
+
+The `TimeUnit` parameter mirrors the Redis `EX` / `PX` / `EXAT` options — `TimeUnit.DAYS`, `TimeUnit.HOURS`, `TimeUnit.SECONDS`, etc. This is a single atomic `SET key value EX ttl` call, not a `SET` followed by `EXPIRE`.
+
+---
+
+*This doc grows as new patterns appear during development.*
+
 *This doc grows as new patterns appear during development.*

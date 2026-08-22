@@ -201,12 +201,12 @@ Verify the complete Phase 1 definition of done with a single runnable test suite
 Add the `scrape_jobs` table and the API endpoint that creates a job and publishes it to RabbitMQ.
 
 **AC:**
-- [ ] `V3__scrape_jobs.sql`: `scrape_jobs` table matching `docs/schema.md`
-- [ ] `POST /recipes/parse`: validates URL format; checks Redis dedup key `recipe:scraped:{url_hash}` (7d TTL); creates `scrape_jobs` record with `status=pending`; publishes `{job_id, url, household_id}` to `scrape.jobs` queue; returns `{job_id, status, ws_token}`
-- [ ] Spring AMQP `RabbitTemplate` configured; `scrape.jobs` queue + dead-letter exchange declared as beans
-- [ ] `GET /recipes/jobs/:job_id`: reads `scrape_jobs` row; 404 if not in caller's household
-- [ ] Unit test: duplicate URL within 7 days returns 200 with existing `job_id` (no new job created)
-- [ ] Integration test: `POST /recipes/parse` → job row exists in DB with `status=pending` → message in RabbitMQ queue
+- [x] `V3__scrape_jobs.sql`: `scrape_jobs` table matching `docs/schema.md`
+- [x] `POST /recipes/parse`: validates URL format; checks Redis dedup key `recipe:scraped:{url_hash}` (7d TTL); creates `scrape_jobs` record with `status=pending`; publishes `{job_id, url, household_id}` to `scrape.jobs` queue; returns `{job_id, status, ws_token}`
+- [x] Spring AMQP `RabbitTemplate` configured; `scrape.jobs` queue + dead-letter exchange declared as beans
+- [x] `GET /recipes/jobs/:job_id`: reads `scrape_jobs` row; 404 if not in caller's household
+- [x] Unit test: duplicate URL within 7 days returns 200 with existing `job_id` (no new job created)
+- [x] Integration test: `POST /recipes/parse` → job row exists in DB with `status=pending` → message in RabbitMQ queue
 
 ---
 
