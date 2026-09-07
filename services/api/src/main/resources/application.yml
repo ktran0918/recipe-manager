@@ -43,6 +43,12 @@ spring:
             redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8000/api/v1/auth/google/callback}
             scope: openid, email, profile
 
+  # All JSON in/out uses snake_case (docs/api.md is the source of truth) — Java fields
+  # stay camelCase; Jackson converts both directions at the (de)serialization boundary.
+  # C# equivalent: JsonNamingPolicy.SnakeCaseLower on JsonSerializerOptions.
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+
 # Custom JWT properties — injected via @ConfigurationProperties (equivalent to IOptions<T>)
 jwt:
   secret: ${JWT_SECRET:dev-secret-must-be-at-least-256-bits-change-in-production}

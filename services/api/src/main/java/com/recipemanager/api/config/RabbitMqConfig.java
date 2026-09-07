@@ -5,6 +5,7 @@ import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -51,15 +52,20 @@ public class RabbitMqConfig {
     // By default RabbitTemplate uses Java serialisation — opaque bytes to the Python consumer.
     // Jackson2JsonMessageConverter switches serialisation to JSON.
     // C# equivalent: configuring a custom IMessageSerializer in MassTransit/RawRabbit.
+    //
+    // Passing the Spring-managed ObjectMapper (rather than letting the converter build its own
+    // default one) is what makes AMQP messages honour spring.jackson.property-naming-strategy —
+    // otherwise this converter would silently emit camelCase while every REST response is
+    // snake_case, breaking the {job_id, url, household_id} contract documented in stories.md.
     @Bean
-    public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+    public MessageConverter jsonMessageConverter(ObjectMapper objectMapper) {
+        return new Jackson2JsonMessageConverter(objectMapper);
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter jsonMessageConverter) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
-        template.setMessageConverter(jsonMessageConverter());
+        template.setMessageConverter(jsonMessageConverter);
         return template;
     }
 }

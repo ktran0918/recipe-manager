@@ -159,7 +159,7 @@ class HouseholdControllerTest {
 
         mockMvc.perform(post("/households/me/invite").with(asOwner()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.inviteCode").value("NEWCODE1"));
+                .andExpect(jsonPath("$.invite_code").value("NEWCODE1"));
     }
 
     // --- POST /households/join ---
@@ -214,7 +214,7 @@ class HouseholdControllerTest {
         mockMvc.perform(get("/households/me/members").with(asMember()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].displayName").value("Alice"));
+                .andExpect(jsonPath("$[0].display_name").value("Alice"));
     }
 
     // --- DELETE /households/me/members/{userId} ---

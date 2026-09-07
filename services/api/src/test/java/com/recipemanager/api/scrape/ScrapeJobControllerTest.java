@@ -62,7 +62,7 @@ class ScrapeJobControllerTest {
                                 {"url": "https://example.com/recipe"}
                                 """))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.jobId").value(JOB_ID.toString()))
+                .andExpect(jsonPath("$.job_id").value(JOB_ID.toString()))
                 .andExpect(jsonPath("$.status").value("pending"));
     }
 
@@ -87,7 +87,7 @@ class ScrapeJobControllerTest {
 
         mockMvc.perform(get("/recipes/jobs/" + JOB_ID).with(asMember()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.jobId").value(JOB_ID.toString()))
+                .andExpect(jsonPath("$.job_id").value(JOB_ID.toString()))
                 .andExpect(jsonPath("$.status").value("parsing"));
     }
 

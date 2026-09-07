@@ -1,5 +1,6 @@
 package com.recipemanager.api.scrape;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recipemanager.api.config.JwtService;
 import com.recipemanager.api.config.RabbitMqConfig;
 import com.recipemanager.api.domain.Household;
@@ -10,6 +11,7 @@ import com.recipemanager.api.repository.ScrapeJobRepository;
 import com.recipemanager.api.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -27,6 +29,7 @@ import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -85,6 +88,7 @@ class ScrapeJobIntegrationTest {
     @Autowired HouseholdRepository householdRepository;
     @Autowired ScrapeJobRepository scrapeJobRepository;
     @Autowired RabbitTemplate rabbitTemplate;
+    @Autowired ObjectMapper objectMapper;
 
     private String accessToken;
     private UUID householdId;
@@ -110,7 +114,7 @@ class ScrapeJobIntegrationTest {
     }
 
     @Test
-    void submitParse_createsJobRowAndPublishesToQueue() {
+    void submitParse_createsJobRowAndPublishesToQueue() throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
         HttpEntity<ParseRequest> request = new HttpEntity<>(
@@ -130,11 +134,19 @@ class ScrapeJobIntegrationTest {
         assertThat(saved.get().getHouseholdId()).isEqualTo(householdId);
         assertThat(saved.get().getSourceUrl()).isEqualTo("https://example.com/garlic-pasta");
 
-        // Message actually landed on the scrape.jobs queue. receiveAndConvert blocks up to
-        // the timeout — the publish is synchronous but the broker needs a moment to route it.
-        Object payload = rabbitTemplate.receiveAndConvert(RabbitMqConfig.QUEUE_NAME, 5000L);
-        assertThat(payload).isInstanceOf(ScrapeJobMessage.class);
-        ScrapeJobMessage message = (ScrapeJobMessage) payload;
+        // Message actually landed on the scrape.jobs queue. receive() blocks up to the timeout —
+        // the publish is synchronous but the broker needs a moment to route it.
+        //
+        // Reading the raw body (rather than receiveAndConvert) is deliberate: a round-trip through
+        // the same converter that published the message can't detect a naming-strategy mismatch,
+        // since publish and receive would silently agree with each other while disagreeing with
+        // the {job_id, url, household_id} contract documented in stories.md.
+        Message raw = rabbitTemplate.receive(RabbitMqConfig.QUEUE_NAME, 5000L);
+        assertThat(raw).isNotNull();
+        String json = new String(raw.getBody(), StandardCharsets.UTF_8);
+        assertThat(json).contains("\"job_id\"").contains("\"household_id\"").doesNotContain("\"jobId\"");
+
+        ScrapeJobMessage message = objectMapper.readValue(json, ScrapeJobMessage.class);
         assertThat(message.jobId()).isEqualTo(jobId);
         assertThat(message.url()).isEqualTo("https://example.com/garlic-pasta");
         assertThat(message.householdId()).isEqualTo(householdId);

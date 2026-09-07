@@ -66,10 +66,10 @@ class CookModeControllerTest {
         mockMvc.perform(get("/recipes/" + RECIPE_ID + "/cook-mode").with(asMember()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.description").doesNotExist())
-                .andExpect(jsonPath("$.imageUrl").doesNotExist())
+                .andExpect(jsonPath("$.image_url").doesNotExist())
                 .andExpect(jsonPath("$.occasions").doesNotExist())
                 .andExpect(jsonPath("$.cuisine").doesNotExist())
-                .andExpect(jsonPath("$.dietTags").doesNotExist())
+                .andExpect(jsonPath("$.diet_tags").doesNotExist())
                 .andExpect(jsonPath("$.complexity").doesNotExist());
     }
 

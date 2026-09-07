@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 // @RestController = @Controller + @ResponseBody — every return value is serialized to JSON.
@@ -68,12 +67,12 @@ public class HouseholdController {
     }
 
     @PostMapping("/me/invite")
-    public ResponseEntity<Map<String, String>> regenerateInviteCode(
+    public ResponseEntity<InviteCodeResponse> regenerateInviteCode(
             @AuthenticationPrincipal UserPrincipal principal) {
         requireHousehold(principal);
 
         String newCode = householdService.regenerateInviteCode(principal.householdId(), principal.userId());
-        return ResponseEntity.ok(Map.of("inviteCode", newCode));
+        return ResponseEntity.ok(new InviteCodeResponse(newCode));
     }
 
     @PostMapping("/join")
