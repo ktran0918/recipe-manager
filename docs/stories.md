@@ -216,12 +216,12 @@ Add the `scrape_jobs` table and the API endpoint that creates a job and publishe
 Create the Python scraper service. Establish project structure, aio-pika consumer loop, and job lifecycle management.
 
 **AC:**
-- [ ] `services/scraper/` project: `pyproject.toml`, ruff + mypy config, pytest setup
-- [ ] `aio-pika` consumer: connects to RabbitMQ, pulls from `scrape.jobs`, ACKs on success, NACKs (no requeue) after `MAX_SCRAPE_RETRIES` → job lands in dead-letter queue
-- [ ] Job lifecycle: on pickup → update `scrape_jobs.status=scraping` in PostgreSQL via asyncpg; on failure → update `status=failed` + `error` column
-- [ ] Structured logging (JSON) with `job_id` on every log line
-- [ ] Unit test: consumer processes a fixture message; DB update is called with correct args (mocked DB)
-- [ ] Dockerfile added; `docker-compose.yml` updated with `scraper` service
+- [x] `services/scraper/` project: `pyproject.toml`, ruff + mypy config, pytest setup
+- [x] `aio-pika` consumer: connects to RabbitMQ, pulls from `scrape.jobs`, ACKs on success, NACKs (no requeue) after `MAX_SCRAPE_RETRIES` → job lands in dead-letter queue
+- [x] Job lifecycle: on pickup → update `scrape_jobs.status=scraping` in PostgreSQL via asyncpg; on failure → update `status=failed` + `error` column
+- [x] Structured logging (JSON) with `job_id` on every log line
+- [x] Unit test: consumer processes a fixture message; DB update is called with correct args (mocked DB)
+- [x] Dockerfile added; `docker-compose.yml` updated with `scraper` service
 
 ---
 
