@@ -827,6 +827,58 @@ The `TimeUnit` parameter mirrors the Redis `EX` / `PX` / `EXAT` options — `Tim
 
 ---
 
-*This doc grows as new patterns appear during development.*
+## Spring Data Elasticsearch — `@Document`, `ElasticsearchRepository`, and query DSL `@Query`
+
+Spring Data Elasticsearch mirrors Spring Data JPA's shape almost exactly — same idea (map a class to a persistent store, get a repository interface for free), different store underneath.
+
+`@Document` is the Elasticsearch equivalent of `@Entity`; `@Field` is the equivalent of `@Column`:
+
+```java
+@Document(indexName = "recipes")
+public class RecipeDocument {
+    @Id
+    private String id;                 // Elasticsearch IDs are always strings, even for a UUID
+
+    @Field(type = FieldType.Keyword)   // exact-match only, like a VARCHAR used for equality, not search
+    private String householdId;
+
+    @Field(type = FieldType.Text, analyzer = "english")   // tokenized + stemmed for full-text search
+    private String title;
+}
+```
+
+`ElasticsearchRepository<T, ID>` is the Elasticsearch equivalent of `JpaRepository<T, ID>` — derived query methods work exactly the same way:
+
+```java
+public interface RecipeSearchRepository extends ElasticsearchRepository<RecipeDocument, String> {
+    Page<RecipeDocument> findByHouseholdId(String householdId, Pageable pageable);  // no @Query needed
+}
+```
+
+The one genuinely new piece is `@Query` here takes raw Elasticsearch query DSL (JSON), not JPQL — and its parameter placeholders are positional (`?0`, `?1`, ...) rather than named:
+
+```java
+@Query("""
+        { "bool": { "must": [ { "term": { "household_id": "?0" } } ],
+                     "should": [ { "multi_match": { "query": "?1",
+                         "fields": ["title", "description"], "fuzziness": "AUTO" } } ] } }
+        """)
+Page<RecipeDocument> searchByKeyword(String householdId, String keyword, Pageable pageable);
+```
+
+C# equivalent: building the same query with the Elasticsearch .NET client's `BoolQuery`/`TermQuery`/`MultiMatchQuery` objects, rather than a LINQ expression that EF Core translates to SQL.
+
+**The search index is not the system of record.** `RecipeDocument` only carries the fields needed for search/filtering — the full `Recipe` entity (ingredients, steps, servings, ...) still lives in Postgres. A search query returns ranked IDs; fetching the full objects is a second round trip via `recipeRepository.findAllById(ids)`. That method does **not** preserve the order of the IDs you passed in, so if ranking matters, re-sort the Postgres results against the original ID order:
+
+```java
+List<UUID> rankedIds = hits.stream().map(doc -> UUID.fromString(doc.getId())).toList();
+Map<UUID, Recipe> byId = recipeRepository.findAllById(rankedIds).stream()
+        .collect(Collectors.toMap(Recipe::getId, r -> r));
+List<Recipe> ordered = rankedIds.stream().map(byId::get).filter(Objects::nonNull).toList();
+```
+
+C# equivalent: the same "fetch by ID list, then re-order against the original ranked list" dance you'd do after a search provider call in .NET — `IDictionary` lookup plus a `Select` over the ranked ID list, same reasoning.
+
+---
 
 *This doc grows as new patterns appear during development.*

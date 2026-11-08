@@ -26,6 +26,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
+import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -62,6 +63,11 @@ class ScrapeJobIntegrationTest {
     @Container
     static RabbitMQContainer rabbitMq = new RabbitMQContainer("rabbitmq:3-management-alpine");
 
+    @Container
+    static ElasticsearchContainer elasticsearchContainer =
+            new ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:8.13.0")
+                    .withEnv("xpack.security.enabled", "false");
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url",      postgres::getJdbcUrl);
@@ -71,6 +77,9 @@ class ScrapeJobIntegrationTest {
         registry.add("spring.jpa.hibernate.ddl-auto",     () -> "validate");
         registry.add("spring.data.redis.url",
                 () -> "redis://localhost:" + redisContainer.getMappedPort(6379));
+        // getHttpHostAddress() returns a bare "host:port" pair (no scheme) — Spring's
+        // spring.elasticsearch.uris expects a full URI, so the scheme has to be added here.
+        registry.add("spring.elasticsearch.uris", () -> "http://" + elasticsearchContainer.getHttpHostAddress());
         registry.add("spring.rabbitmq.host",     rabbitMq::getHost);
         registry.add("spring.rabbitmq.port",     rabbitMq::getAmqpPort);
         registry.add("spring.rabbitmq.username", rabbitMq::getAdminUsername);

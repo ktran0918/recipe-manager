@@ -20,6 +20,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -54,6 +55,14 @@ class AuthIntegrationTest {
     static GenericContainer<?> redisContainer = new GenericContainer<>("redis:7-alpine")
             .withExposedPorts(6379);
 
+    // ElasticsearchContainer is Testcontainers' dedicated module for Elasticsearch — it knows
+    // the image's correct startup wait strategy, the way PostgreSQLContainer does for Postgres.
+    // Image tag matches docker-compose.yml so tests exercise the same ES version as prod.
+    @Container
+    static ElasticsearchContainer elasticsearchContainer =
+            new ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:8.13.0")
+                    .withEnv("xpack.security.enabled", "false");
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url",      postgres::getJdbcUrl);
@@ -63,6 +72,9 @@ class AuthIntegrationTest {
         registry.add("spring.jpa.hibernate.ddl-auto",     () -> "validate");
         registry.add("spring.data.redis.url",
                 () -> "redis://localhost:" + redisContainer.getMappedPort(6379));
+        // getHttpHostAddress() returns a bare "host:port" pair (no scheme) — Spring's
+        // spring.elasticsearch.uris expects a full URI, so the scheme has to be added here.
+        registry.add("spring.elasticsearch.uris", () -> "http://" + elasticsearchContainer.getHttpHostAddress());
         // Provide non-placeholder OAuth2 values so Spring Boot's autoconfiguration
         // does not reject the client registration at startup.
         registry.add("spring.security.oauth2.client.registration.google.client-id",     () -> "test-client-id");

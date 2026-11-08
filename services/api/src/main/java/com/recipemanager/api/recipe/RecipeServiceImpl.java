@@ -8,6 +8,7 @@ import com.recipemanager.api.repository.IngredientRepository;
 import com.recipemanager.api.repository.RecipeIngredientRepository;
 import com.recipemanager.api.repository.RecipeNutritionRepository;
 import com.recipemanager.api.repository.RecipeRepository;
+import com.recipemanager.api.repository.RecipeSearchRepository;
 import com.recipemanager.api.repository.RecipeStepRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +19,10 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 // Everything runs in the class-level @Transactional — if any save fails,
@@ -27,17 +31,20 @@ import java.util.UUID;
 public class RecipeServiceImpl implements RecipeService {
 
     private final RecipeRepository recipeRepository;
+    private final RecipeSearchRepository recipeSearchRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
     private final RecipeStepRepository recipeStepRepository;
     private final IngredientRepository ingredientRepository;
     private final RecipeNutritionRepository recipeNutritionRepository;
 
     public RecipeServiceImpl(RecipeRepository recipeRepository,
+                             RecipeSearchRepository recipeSearchRepository,
                              RecipeIngredientRepository recipeIngredientRepository,
                              RecipeStepRepository recipeStepRepository,
                              IngredientRepository ingredientRepository,
                              RecipeNutritionRepository recipeNutritionRepository) {
         this.recipeRepository = recipeRepository;
+        this.recipeSearchRepository = recipeSearchRepository;
         this.recipeIngredientRepository = recipeIngredientRepository;
         this.recipeStepRepository = recipeStepRepository;
         this.ingredientRepository = ingredientRepository;
@@ -109,12 +116,34 @@ public class RecipeServiceImpl implements RecipeService {
         // Our API uses 1-based page numbers, so subtract 1:
         PageRequest pageable = PageRequest.of(page - 1, perPage);
 
+        // Keyword search goes through Elasticsearch (fuzzy matching across title,
+        // description, and ingredient names — see RecipeSearchRepository). The plain,
+        // unfiltered household listing stays on Postgres: it was never using ILIKE, gains
+        // nothing from a search engine, and only recipes the scraper has indexed would show
+        // up here otherwise — manually created recipes are never written to Elasticsearch.
         if (StringUtils.hasText(keyword)) {
-            return recipeRepository.findByHouseholdIdAndKeyword(householdId, keyword, pageable)
-                    .stream().map(RecipeResponse::from).toList();
+            List<RecipeDocument> hits = recipeSearchRepository
+                    .searchByKeyword(householdId.toString(), keyword, pageable)
+                    .getContent();
+            return hydrateFromSearchHits(hits);
         }
         return recipeRepository.findByHouseholdId(householdId, pageable)
                 .stream().map(RecipeResponse::from).toList();
+    }
+
+    // Elasticsearch ranks by relevance; Postgres holds the full Recipe data (ingredients,
+    // steps, servings, ...) that RecipeDocument intentionally doesn't duplicate. findAllById
+    // doesn't preserve the order of the ids passed in, so the ranking has to be re-applied
+    // after the lookup — otherwise the whole point of searching via Elasticsearch is lost.
+    private List<RecipeResponse> hydrateFromSearchHits(List<RecipeDocument> hits) {
+        List<UUID> rankedIds = hits.stream().map(doc -> UUID.fromString(doc.getId())).toList();
+        Map<UUID, Recipe> recipesById = recipeRepository.findAllById(rankedIds).stream()
+                .collect(Collectors.toMap(Recipe::getId, recipe -> recipe));
+        return rankedIds.stream()
+                .map(recipesById::get)
+                .filter(Objects::nonNull)
+                .map(RecipeResponse::from)
+                .toList();
     }
 
     @Override

@@ -6,6 +6,7 @@ import com.recipemanager.api.repository.IngredientRepository;
 import com.recipemanager.api.repository.RecipeIngredientRepository;
 import com.recipemanager.api.repository.RecipeNutritionRepository;
 import com.recipemanager.api.repository.RecipeRepository;
+import com.recipemanager.api.repository.RecipeSearchRepository;
 import com.recipemanager.api.repository.RecipeStepRepository;
 import com.recipemanager.api.repository.ScrapeJobRepository;
 import com.recipemanager.api.repository.UserRepository;
@@ -35,6 +36,7 @@ class RecipeManagerApplicationTests {
     @MockBean private HouseholdMemberRepository householdMemberRepository;
     @MockBean private UserRepository userRepository;
     @MockBean private RecipeRepository recipeRepository;
+    @MockBean private RecipeSearchRepository recipeSearchRepository;
     @MockBean private RecipeIngredientRepository recipeIngredientRepository;
     @MockBean private RecipeStepRepository recipeStepRepository;
     @MockBean private IngredientRepository ingredientRepository;

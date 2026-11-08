@@ -27,6 +27,9 @@ spring:
     redis:
       url: ${SPRING_DATA_REDIS_URL:redis://localhost:6379/0}
 
+  elasticsearch:
+    uris: ${SPRING_ELASTICSEARCH_URIS:http://localhost:9200}
+
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
