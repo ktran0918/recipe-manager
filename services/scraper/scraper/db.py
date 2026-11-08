@@ -31,10 +31,16 @@ async def mark_parsing(pool: asyncpg.Pool, job_id: UUID) -> None:
     )
 
 
-async def mark_embedding(pool: asyncpg.Pool, job_id: UUID) -> None:
+async def get_job_creator(pool: asyncpg.Pool, job_id: UUID) -> UUID:
+    created_by: UUID = await pool.fetchval("SELECT created_by FROM scrape_jobs WHERE id = $1", job_id)
+    return created_by
+
+
+async def mark_embedding(pool: asyncpg.Pool, job_id: UUID, recipe_id: UUID) -> None:
     await pool.execute(
-        "UPDATE scrape_jobs SET status = 'embedding', updated_at = now() WHERE id = $1",
+        "UPDATE scrape_jobs SET status = 'embedding', recipe_id = $2, updated_at = now() WHERE id = $1",
         job_id,
+        recipe_id,
     )
 
 

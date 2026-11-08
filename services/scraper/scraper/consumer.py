@@ -7,12 +7,13 @@ from aio_pika.abc import AbstractChannel, AbstractIncomingMessage
 from pydantic import ValidationError
 
 from scraper.config import settings
-from scraper.db import mark_embedding, mark_failed, mark_parsing, mark_scraping
+from scraper.db import get_job_creator, mark_embedding, mark_failed, mark_parsing, mark_scraping
 from scraper.extractor import extract_article_text
 from scraper.fetcher import fetch_html
 from scraper.logging_config import set_job_id
 from scraper.models import ScrapeJobMessage
 from scraper.recipe_parser import parse_recipe
+from scraper.recipe_writer import write_recipe
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,13 @@ async def handle_message(channel: AbstractChannel, message: AbstractIncomingMess
             recipe = await parse_recipe(article_text)
             logger.info("Parsed recipe %r with %d ingredients", recipe.title, len(recipe.ingredients))
 
-            await mark_embedding(pool, job.job_id)
+            created_by = await get_job_creator(pool, job.job_id)
+            recipe_id = await write_recipe(
+                pool, household_id=job.household_id, created_by=created_by, source_url=job.url, recipe=recipe
+            )
+            logger.info("Wrote recipe %s to PostgreSQL", recipe_id)
+
+            await mark_embedding(pool, job.job_id, recipe_id)
             await message.ack()
             logger.info("Marked job as embedding")
         except Exception as exc:  # noqa: BLE001 — any failure here must route to retry/dead-letter

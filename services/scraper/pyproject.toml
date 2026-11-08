@@ -14,6 +14,7 @@ dependencies = [
     "ollama>=0.6,<1",
     "anthropic>=2.0,<3",
     "guardrails-ai>=0.11,<1",
+    "inflect>=7.3,<8",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +23,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "ruff>=0.5",
     "mypy>=1.10",
+    "testcontainers[postgres]>=4.8,<5",
 ]
 
 [build-system]

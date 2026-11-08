@@ -262,12 +262,12 @@ Send extracted article text to a local LLM (Ollama `qwen2.5:14b`) with a strict 
 Persist the parsed recipe to PostgreSQL. Normalise ingredients against the shared catalog.
 
 **AC:**
-- [ ] Ingredient normalisation: lowercase + singularise `name` → look up `ingredients.normalized_name`; insert if not found
-- [ ] Write `recipes`, `recipe_ingredients`, `recipe_steps` rows in a single transaction via asyncpg
-- [ ] If parsed substitutions present: normalise original + substitute ingredient names against the catalog; write `recipe_ingredient_substitutions` rows with `source='recipe'` in the same transaction; skip any substitution where either ingredient cannot be resolved
-- [ ] Sets `recipes.parsed_at` to now
-- [ ] Updates `scrape_jobs.status=embedding`, `scrape_jobs.recipe_id` on commit
-- [ ] Integration test (Testcontainers PostgreSQL): parsed fixture recipe → correct rows in all three tables; re-running with same ingredient names reuses existing ingredient rows
+- [x] Ingredient normalisation: lowercase + singularise `name` → look up `ingredients.normalized_name`; insert if not found
+- [x] Write `recipes`, `recipe_ingredients`, `recipe_steps` rows in a single transaction via asyncpg
+- [x] If parsed substitutions present: normalise original + substitute ingredient names against the catalog; write `recipe_ingredient_substitutions` rows with `source='recipe'` in the same transaction; skip any substitution where either ingredient cannot be resolved
+- [x] Sets `recipes.parsed_at` to now
+- [x] Updates `scrape_jobs.status=embedding`, `scrape_jobs.recipe_id` on commit
+- [x] Integration test (Testcontainers PostgreSQL): parsed fixture recipe → correct rows in all three tables; re-running with same ingredient names reuses existing ingredient rows
 
 ---
 
