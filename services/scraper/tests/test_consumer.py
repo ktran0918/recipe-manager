@@ -3,7 +3,17 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from scraper.consumer import RETRY_HEADER, handle_message
-from scraper.errors import FetchError
+from scraper.errors import FetchError, ParseError
+from scraper.recipe_schema import ParsedIngredient, ParsedRecipe, ParsedStep
+
+
+def _fixture_parsed_recipe() -> ParsedRecipe:
+    return ParsedRecipe(
+        title="Garlic Butter Pasta",
+        servings=4,
+        ingredients=[ParsedIngredient(raw_text="8 oz spaghetti", name="spaghetti", quantity=8, unit="oz")],
+        steps=[ParsedStep(step_number=1, instruction="Boil pasta.")],
+    )
 
 
 class _NullContext:
@@ -39,17 +49,22 @@ async def test_handle_message_marks_scraping_and_acks(monkeypatch):
 
     mark_scraping = AsyncMock()
     mark_parsing = AsyncMock()
+    mark_embedding = AsyncMock()
     monkeypatch.setattr("scraper.consumer.mark_scraping", mark_scraping)
     monkeypatch.setattr("scraper.consumer.mark_parsing", mark_parsing)
-    # fetch_html/extract_article_text are real network + parsing calls in production —
-    # stub both so this test exercises only the consumer's own lifecycle logic.
+    monkeypatch.setattr("scraper.consumer.mark_embedding", mark_embedding)
+    # fetch_html/extract_article_text/parse_recipe are real network + LLM calls in
+    # production — stub all three so this test exercises only the consumer's own
+    # lifecycle logic.
     monkeypatch.setattr("scraper.consumer.fetch_html", AsyncMock(return_value="<html>fetched</html>"))
     monkeypatch.setattr("scraper.consumer.extract_article_text", lambda html: "extracted article text")
+    monkeypatch.setattr("scraper.consumer.parse_recipe", AsyncMock(return_value=_fixture_parsed_recipe()))
 
     await handle_message(channel, message, pool)
 
     mark_scraping.assert_awaited_once_with(pool, job_id)
     mark_parsing.assert_awaited_once_with(pool, job_id)
+    mark_embedding.assert_awaited_once_with(pool, job_id)
     message.ack.assert_awaited_once()
     message.nack.assert_not_called()
     channel.default_exchange.publish.assert_not_called()
@@ -91,6 +106,30 @@ async def test_handle_message_fetch_failure_requeues_with_incremented_retry_head
 
     monkeypatch.setattr("scraper.consumer.mark_scraping", AsyncMock())
     monkeypatch.setattr("scraper.consumer.fetch_html", AsyncMock(side_effect=FetchError("site unreachable")))
+
+    await handle_message(channel, message, pool)
+
+    channel.default_exchange.publish.assert_awaited_once()
+    published_message = channel.default_exchange.publish.call_args.args[0]
+    assert published_message.headers[RETRY_HEADER] == 1
+    message.ack.assert_awaited_once()
+    message.nack.assert_not_called()
+
+
+async def test_handle_message_parse_failure_requeues_with_incremented_retry_header(monkeypatch):
+    job_id, household_id = uuid4(), uuid4()
+    message = FakeMessage(_fixture_body(job_id, household_id), headers={RETRY_HEADER: 0})
+    pool = AsyncMock()
+    channel = AsyncMock()
+
+    monkeypatch.setattr("scraper.consumer.mark_scraping", AsyncMock())
+    monkeypatch.setattr("scraper.consumer.fetch_html", AsyncMock(return_value="<html>fetched</html>"))
+    monkeypatch.setattr("scraper.consumer.extract_article_text", lambda html: "extracted article text")
+    monkeypatch.setattr("scraper.consumer.mark_parsing", AsyncMock())
+    monkeypatch.setattr(
+        "scraper.consumer.parse_recipe",
+        AsyncMock(side_effect=ParseError("failed Guardrails validation on both tiers")),
+    )
 
     await handle_message(channel, message, pool)
 

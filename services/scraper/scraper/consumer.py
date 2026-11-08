@@ -7,11 +7,12 @@ from aio_pika.abc import AbstractChannel, AbstractIncomingMessage
 from pydantic import ValidationError
 
 from scraper.config import settings
-from scraper.db import mark_failed, mark_parsing, mark_scraping
+from scraper.db import mark_embedding, mark_failed, mark_parsing, mark_scraping
 from scraper.extractor import extract_article_text
 from scraper.fetcher import fetch_html
 from scraper.logging_config import set_job_id
 from scraper.models import ScrapeJobMessage
+from scraper.recipe_parser import parse_recipe
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,12 @@ async def handle_message(channel: AbstractChannel, message: AbstractIncomingMess
             logger.info("Extracted %d chars of article text", len(article_text))
 
             await mark_parsing(pool, job.job_id)
+            recipe = await parse_recipe(article_text)
+            logger.info("Parsed recipe %r with %d ingredients", recipe.title, len(recipe.ingredients))
+
+            await mark_embedding(pool, job.job_id)
             await message.ack()
-            logger.info("Marked job as parsing")
+            logger.info("Marked job as embedding")
         except Exception as exc:  # noqa: BLE001 — any failure here must route to retry/dead-letter
             await _handle_failure(channel, message, pool, job.job_id, exc)
         finally:

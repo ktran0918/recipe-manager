@@ -16,5 +16,13 @@ class Settings(BaseSettings):
     queue_name: str = "scrape.jobs"
     dlx_name: str = "scrape.jobs.dlx"
 
+    # Matches the OLLAMA_URL env var already defined in .env.example — host.docker.internal
+    # in Docker, since Ollama runs on the host machine rather than in a container.
+    ollama_url: str = "http://localhost:11434"
+    ollama_parse_model: str = "qwen2.5:14b"
+
+    anthropic_api_key: str = ""
+    cloud_parse_model: str = "claude-haiku-4-5"
+
 
 settings = Settings()

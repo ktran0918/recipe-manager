@@ -31,6 +31,13 @@ async def mark_parsing(pool: asyncpg.Pool, job_id: UUID) -> None:
     )
 
 
+async def mark_embedding(pool: asyncpg.Pool, job_id: UUID) -> None:
+    await pool.execute(
+        "UPDATE scrape_jobs SET status = 'embedding', updated_at = now() WHERE id = $1",
+        job_id,
+    )
+
+
 async def mark_failed(pool: asyncpg.Pool, job_id: UUID, error: str) -> None:
     await pool.execute(
         "UPDATE scrape_jobs SET status = 'failed', error = $2, updated_at = now() WHERE id = $1",

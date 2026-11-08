@@ -246,13 +246,13 @@ Fetch raw HTML from any URL. Handle JS-rendered pages.
 Send extracted article text to a local LLM (Ollama `qwen2.5:14b`) with a strict JSON schema. Validate output with Guardrails AI, retrying locally once on failure; escalate to Claude Haiku only if the local parse still fails Guardrails a second time. See `docs/adr/004-llm-recipe-parsing.md` for the full pipeline and rationale.
 
 **AC:**
-- [ ] `ollama.chat` call with `model="qwen2.5:14b"` and `format=recipe_extraction_schema` (JSON schema matching `docs/schema.md` recipe structure) — Ollama's schema-constrained decoding guarantees syntactically valid JSON
-- [ ] Extraction schema includes an optional `substitutions` array: each entry has `original_ingredient_name`, `substitute_ingredient_name`, `conversion_ratio` (default 1.0), `notes` — the model extracts these from recipe text (e.g. "you can use Greek yogurt instead of sour cream")
-- [ ] System prompt committed as a constant (not inline string), shared verbatim between the local call and the escalation call so both tiers are extracting against the same instructions
-- [ ] Guardrails AI validator: required fields present, `servings > 0`, `cook_time_minutes >= 0`, at least one ingredient, at least one step, all ingredient quantities parseable as numbers
-- [ ] On validation failure: retry the local call once with a correction prompt; if still failing, escalate to `anthropic.messages.create` with `model="claude-haiku-4-5"` and `tools=[recipe_extraction_tool]` (same JSON schema); if the escalated parse also fails Guardrails, raise `ParseError`
-- [ ] Updates `scrape_jobs.status=embedding` on success (from either tier)
-- [ ] Unit tests: fixture local-model response → parsed correctly into domain object; fixture with substitutions → substitution objects present; missing required field → triggers local retry; local retry also fails → triggers Haiku escalation with a fixture Haiku response that parses correctly; both tiers fail → `ParseError`; Guardrails rejection on `servings=0`
+- [x] `ollama.chat` call with `model="qwen2.5:14b"` and `format=recipe_extraction_schema` (JSON schema matching `docs/schema.md` recipe structure) — Ollama's schema-constrained decoding guarantees syntactically valid JSON
+- [x] Extraction schema includes an optional `substitutions` array: each entry has `original_ingredient_name`, `substitute_ingredient_name`, `conversion_ratio` (default 1.0), `notes` — the model extracts these from recipe text (e.g. "you can use Greek yogurt instead of sour cream")
+- [x] System prompt committed as a constant (not inline string), shared verbatim between the local call and the escalation call so both tiers are extracting against the same instructions
+- [x] Guardrails AI validator: required fields present, `servings > 0`, `cook_time_minutes >= 0`, at least one ingredient, at least one step, all ingredient quantities parseable as numbers
+- [x] On validation failure: retry the local call once with a correction prompt; if still failing, escalate to `anthropic.messages.create` with `model="claude-haiku-4-5"` and `tools=[recipe_extraction_tool]` (same JSON schema); if the escalated parse also fails Guardrails, raise `ParseError`
+- [x] Updates `scrape_jobs.status=embedding` on success (from either tier)
+- [x] Unit tests: fixture local-model response → parsed correctly into domain object; fixture with substitutions → substitution objects present; missing required field → triggers local retry; local retry also fails → triggers Haiku escalation with a fixture Haiku response that parses correctly; both tiers fail → `ParseError`; Guardrails rejection on `servings=0`
 
 ---
 
