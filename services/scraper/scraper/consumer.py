@@ -7,7 +7,9 @@ from aio_pika.abc import AbstractChannel, AbstractIncomingMessage
 from pydantic import ValidationError
 
 from scraper.config import settings
-from scraper.db import mark_failed, mark_scraping
+from scraper.db import mark_failed, mark_parsing, mark_scraping
+from scraper.extractor import extract_article_text
+from scraper.fetcher import fetch_html
 from scraper.logging_config import set_job_id
 from scraper.models import ScrapeJobMessage
 
@@ -31,8 +33,14 @@ async def handle_message(channel: AbstractChannel, message: AbstractIncomingMess
         try:
             logger.info("Picked up scrape job for %s", job.url)
             await mark_scraping(pool, job.job_id)
+
+            html = await fetch_html(job.url)
+            article_text = extract_article_text(html)
+            logger.info("Extracted %d chars of article text", len(article_text))
+
+            await mark_parsing(pool, job.job_id)
             await message.ack()
-            logger.info("Marked job as scraping")
+            logger.info("Marked job as parsing")
         except Exception as exc:  # noqa: BLE001 — any failure here must route to retry/dead-letter
             await _handle_failure(channel, message, pool, job.job_id, exc)
         finally:

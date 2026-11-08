@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from scraper.consumer import RETRY_HEADER, handle_message
+from scraper.errors import FetchError
 
 
 class _NullContext:
@@ -37,13 +38,21 @@ async def test_handle_message_marks_scraping_and_acks(monkeypatch):
     channel = AsyncMock()
 
     mark_scraping = AsyncMock()
+    mark_parsing = AsyncMock()
     monkeypatch.setattr("scraper.consumer.mark_scraping", mark_scraping)
+    monkeypatch.setattr("scraper.consumer.mark_parsing", mark_parsing)
+    # fetch_html/extract_article_text are real network + parsing calls in production —
+    # stub both so this test exercises only the consumer's own lifecycle logic.
+    monkeypatch.setattr("scraper.consumer.fetch_html", AsyncMock(return_value="<html>fetched</html>"))
+    monkeypatch.setattr("scraper.consumer.extract_article_text", lambda html: "extracted article text")
 
     await handle_message(channel, message, pool)
 
     mark_scraping.assert_awaited_once_with(pool, job_id)
+    mark_parsing.assert_awaited_once_with(pool, job_id)
     message.ack.assert_awaited_once()
     message.nack.assert_not_called()
+    channel.default_exchange.publish.assert_not_called()
 
 
 async def test_handle_message_malformed_body_deadletters_without_retry():
@@ -71,6 +80,24 @@ async def test_handle_message_db_failure_requeues_with_incremented_retry_header(
     published_message = channel.default_exchange.publish.call_args.args[0]
     assert published_message.headers[RETRY_HEADER] == 1
     message.ack.assert_awaited_once()  # original removed after republish, not requeued in place
+    message.nack.assert_not_called()
+
+
+async def test_handle_message_fetch_failure_requeues_with_incremented_retry_header(monkeypatch):
+    job_id, household_id = uuid4(), uuid4()
+    message = FakeMessage(_fixture_body(job_id, household_id), headers={RETRY_HEADER: 0})
+    pool = AsyncMock()
+    channel = AsyncMock()
+
+    monkeypatch.setattr("scraper.consumer.mark_scraping", AsyncMock())
+    monkeypatch.setattr("scraper.consumer.fetch_html", AsyncMock(side_effect=FetchError("site unreachable")))
+
+    await handle_message(channel, message, pool)
+
+    channel.default_exchange.publish.assert_awaited_once()
+    published_message = channel.default_exchange.publish.call_args.args[0]
+    assert published_message.headers[RETRY_HEADER] == 1
+    message.ack.assert_awaited_once()
     message.nack.assert_not_called()
 
 

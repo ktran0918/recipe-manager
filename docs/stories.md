@@ -231,12 +231,12 @@ Create the Python scraper service. Establish project structure, aio-pika consume
 Fetch raw HTML from any URL. Handle JS-rendered pages.
 
 **AC:**
-- [ ] `httpx` for static pages; `playwright` (async) for JS-rendered pages (detected by attempting static fetch first; fall back if content is too short or obviously JS-gated)
-- [ ] Timeout: `SCRAPE_TIMEOUT_SECONDS` (from env)
-- [ ] Extracts article text with `trafilatura`; raises if extracted content is below a minimum length threshold
-- [ ] Updates `scrape_jobs.status=parsing` after successful fetch
-- [ ] Unit tests: static page fixture → correct text extracted; short/empty extraction raises `FetchError`
-- [ ] Integration test: fetch a real static recipe URL (test with a known-good fixture HTML file, not live network)
+- [x] `httpx` for static pages; `playwright` (async) for JS-rendered pages (detected by attempting static fetch first; fall back if content is too short or obviously JS-gated)
+- [x] Timeout: `SCRAPE_TIMEOUT_SECONDS` (from env)
+- [x] Extracts article text with `trafilatura`; raises if extracted content is below a minimum length threshold
+- [x] Updates `scrape_jobs.status=parsing` after successful fetch
+- [x] Unit tests: static page fixture → correct text extracted; short/empty extraction raises `FetchError`
+- [x] Integration test: fetch a real static recipe URL (test with a known-good fixture HTML file, not live network)
 
 ---
 
