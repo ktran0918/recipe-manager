@@ -4,14 +4,18 @@ from uuid import UUID
 
 import aio_pika
 from aio_pika.abc import AbstractChannel, AbstractIncomingMessage
+from elasticsearch import AsyncElasticsearch
 from pydantic import ValidationError
+from qdrant_client import AsyncQdrantClient
 
 from scraper.config import settings
-from scraper.db import get_job_creator, mark_embedding, mark_failed, mark_parsing, mark_scraping
+from scraper.db import get_job_creator, mark_complete, mark_embedding, mark_failed, mark_parsing, mark_scraping
 from scraper.extractor import extract_article_text
 from scraper.fetcher import fetch_html
+from scraper.indexing import embed_recipe, index_elasticsearch_document, load_recipe_for_indexing, upsert_qdrant_point
 from scraper.logging_config import set_job_id
 from scraper.models import ScrapeJobMessage
+from scraper.notifications import publish_job_complete
 from scraper.recipe_parser import parse_recipe
 from scraper.recipe_writer import write_recipe
 
@@ -22,7 +26,13 @@ logger = logging.getLogger(__name__)
 RETRY_HEADER = "x-retry-count"
 
 
-async def handle_message(channel: AbstractChannel, message: AbstractIncomingMessage, pool: Any) -> None:
+async def handle_message(
+    channel: AbstractChannel,
+    message: AbstractIncomingMessage,
+    pool: Any,
+    qdrant_client: AsyncQdrantClient,
+    es_client: AsyncElasticsearch,
+) -> None:
     async with message.process(ignore_processed=True):
         try:
             job = ScrapeJobMessage.model_validate_json(message.body)
@@ -51,8 +61,18 @@ async def handle_message(channel: AbstractChannel, message: AbstractIncomingMess
             logger.info("Wrote recipe %s to PostgreSQL", recipe_id)
 
             await mark_embedding(pool, job.job_id, recipe_id)
-            await message.ack()
             logger.info("Marked job as embedding")
+
+            doc = await load_recipe_for_indexing(pool, recipe_id)
+            vector = await embed_recipe(doc)
+            await upsert_qdrant_point(qdrant_client, doc, vector)
+            await index_elasticsearch_document(es_client, doc)
+            logger.info("Indexed recipe %s in Qdrant and Elasticsearch", recipe_id)
+
+            await mark_complete(pool, job.job_id)
+            await publish_job_complete(job.job_id, recipe_id)
+            await message.ack()
+            logger.info("Marked job as complete")
         except Exception as exc:  # noqa: BLE001 — any failure here must route to retry/dead-letter
             await _handle_failure(channel, message, pool, job.job_id, exc)
         finally:

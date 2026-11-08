@@ -24,5 +24,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     cloud_parse_model: str = "claude-haiku-4-5"
 
+    ollama_embed_model: str = "nomic-embed-text"
+    qdrant_url: str = "http://localhost:6333"
+    elasticsearch_url: str = "http://localhost:9200"
+    redis_url: str = "redis://localhost:6379/0"
+
 
 settings = Settings()

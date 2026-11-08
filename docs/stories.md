@@ -277,13 +277,13 @@ Persist the parsed recipe to PostgreSQL. Normalise ingredients against the share
 Generate embeddings for the new recipe and index it for full-text search. Notify the API when complete.
 
 **AC:**
-- [ ] Ollama client: `POST /api/embeddings` with `model=nomic-embed-text`; embed concatenation of `title + description + ingredient_names + occasions`
-- [ ] Upsert to Qdrant `recipes` collection with payload fields matching `docs/schema.md` (Qdrant section)
-- [ ] Index recipe document to Elasticsearch `recipes` index (mappings matching `docs/schema.md`)
+- [x] Ollama client: `POST /api/embeddings` with `model=nomic-embed-text`; embed concatenation of `title + description + ingredient_names + occasions`
+- [x] Upsert to Qdrant `recipes` collection with payload fields matching `docs/schema.md` (Qdrant section)
+- [x] Index recipe document to Elasticsearch `recipes` index (mappings matching `docs/schema.md`)
 - [ ] Update `GET /recipes` in the Spring Boot API to query Elasticsearch instead of PostgreSQL ILIKE (requires this story to be merged first)
-- [ ] Publish completion to Redis pub/sub channel `job.status.{job_id}` with `{status: "complete", recipe_id: "..."}`
-- [ ] Updates `scrape_jobs.status=complete` in PostgreSQL
-- [ ] Unit test: Ollama response fixture → correct Qdrant upsert payload constructed
+- [x] Publish completion to Redis pub/sub channel `job.status.{job_id}` with `{status: "complete", recipe_id: "..."}`
+- [x] Updates `scrape_jobs.status=complete` in PostgreSQL
+- [x] Unit test: Ollama response fixture → correct Qdrant upsert payload constructed
 
 ---
 
