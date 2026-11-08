@@ -82,18 +82,29 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
 - [ ] RabbitMQ consumer (aio-pika)
 - [ ] HTTP fetcher: httpx for static pages; Playwright for JS-rendered pages
 - [ ] Content extractor: trafilatura (strips nav, ads, boilerplate)
-- [ ] Claude API integration: structured output with recipe schema including optional `substitutions[]` array (extracted from recipe text)
+- [ ] Local LLM integration: structured output with recipe schema including optional `substitutions[]` array (extracted from recipe text); escalates to Claude Haiku on repeated validation failure
   ```python
-  # Haiku handles structured extraction reliably at ~10-20x lower cost than Sonnet/Opus.
-  # Escalate to claude-sonnet-4-6 only if quality degrades on messy food blog HTML.
+  # qwen2.5:14b runs the extraction for free, locally. Ollama's `format` param constrains
+  # decoding to the JSON schema, so output is always syntactically valid — Guardrails below
+  # checks semantic validity (required fields, sane quantities).
+  response = ollama.chat(
+      model="qwen2.5:14b",
+      messages=[
+          {"role": "system", "content": RECIPE_PARSER_SYSTEM_PROMPT},
+          {"role": "user", "content": raw_text},
+      ],
+      format=recipe_extraction_schema,  # same JSON schema as the escalation tool below
+  )
+  # Escalate to claude-haiku-4-5 only if the local parse fails Guardrails twice —
+  # see ADR-004 for the full retry/escalation design.
   response = anthropic.messages.create(
-      model="claude-haiku-4-5-20251001",
+      model="claude-haiku-4-5",
       system=RECIPE_PARSER_SYSTEM_PROMPT,
       messages=[{"role": "user", "content": raw_text}],
       tools=[recipe_extraction_tool],  # tool with JSON schema
   )
   ```
-- [ ] Guardrails AI: validate required fields, sane quantity ranges, non-empty steps
+- [ ] Guardrails AI: validate required fields, sane quantity ranges, non-empty steps; gates the local retry and cloud escalation above
 - [ ] Write `recipe_ingredient_substitutions` rows (`source='recipe'`) for any substitutions extracted from the recipe text
 - [ ] Ingredient normalization: match to existing `ingredients` table or create new
 
@@ -262,7 +273,7 @@ Start Chat Platform around Phase 3–4 of Recipe Manager.
   - `query_pantry()` → reads current pantry state
   - `check_schedule(week)` → reads existing meal plan entries
   - `write_meal_plan(entries)` → creates meal plan entries
-  - Model: `claude-haiku-4-5-20251001` — local models fail reliably at multi-step tool-calling; Haiku is the cheapest cloud option with acceptable agentic reliability
+  - Model: `claude-haiku-4-5` — local models fail reliably at multi-step tool-calling; Haiku is the cheapest cloud option with acceptable agentic reliability
 - [ ] `POST /ai/meal-plan` — NL prompt → agent → meal plan created
 - [ ] Guardrails: validate agent-produced meal plan against schema before writing
 

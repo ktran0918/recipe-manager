@@ -85,7 +85,9 @@ CI runs per service: Java uses `./mvnw verify`; Python services use ruff + mypy 
 
 **Pantry event sourcing:** `pantry_events` is the source of truth — immutable, append-only. `pantry_items` is a projection derived from events. Never update pantry quantities in place. All writes (add, deduct, cook_deduction, adjust, expire) go through `pantry_events` first, then update the projection, always in a single PostgreSQL transaction. See `docs/adr/002-pantry-event-sourcing.md`.
 
-**Recipe parsing:** Claude API with tool-calling and a strict JSON schema, not CSS selectors or rule-based parsers. Trafilatura pre-processes raw HTML to article text before the LLM call. Guardrails AI validates output before writing to PostgreSQL. See `docs/adr/004-llm-recipe-parsing.md`.
+**Recipe parsing:** Local-first LLM extraction with a strict JSON schema, not CSS selectors or rule-based parsers. Trafilatura pre-processes raw HTML to article text before the LLM call. Primary parser is Ollama `qwen2.5:14b`; Guardrails AI validates output before writing to PostgreSQL, retrying locally once and escalating to `claude-haiku-4-5` only if the local parse fails Guardrails twice. See `docs/adr/004-llm-recipe-parsing.md`.
+
+**LLM model selection:** Prioritize local, open-weight models (Ollama) over the Claude API wherever viable — both to minimize cost and because deploying/operating local models is itself one of this project's learning goals. Reach for the Claude API only when a task's failure mode can't be caught by a validation gate the way Guardrails catches a bad recipe parse — e.g. the NL meal planner agent's multi-step tool-calling, where local 7–14B models reliably hallucinate tool schemas. See `docs/adr/007-local-vs-cloud-llm-boundary.md` for the current task-by-task split.
 
 **Embedding:** Ollama (`nomic-embed-text`) for all embedding generation — not the Anthropic or OpenAI embeddings API. Volume at household scale makes local embedding the right call on cost.
 
@@ -111,5 +113,5 @@ When implementing stories, act as a **syntax instructor**:
 - **ADRs:** Major technology choices go in `docs/adr/` with context, rationale, and alternatives rejected.
 - **Comments:** Only when the WHY is non-obvious. No docstrings restating what the function name already says.
 - **Testing:** Integration tests hit a real (test) database — no mocking the DB layer. Pytest fixtures use transaction rollback per test for isolation.
-- **Claude API costs:** The Anthropic API is billed separately from Claude Pro. Recipe parse cost is ~$0.02–$0.03 per URL at Sonnet pricing. Haiku is viable for structured extraction with a tight schema.
+- **Claude API costs:** The Anthropic API is billed separately from Claude Pro. Recipe parsing runs local-first (Ollama `qwen2.5:14b`) at $0 per URL; it only reaches the Claude API (`claude-haiku-4-5`, ~$0.006/URL) on escalation after two local Guardrails failures. The NL meal planner agent is the one task that is cloud-only by design — see `docs/claude_api_costs.md`.
 - **Git commit attribution:** End every AI-assisted commit with the trailer `AI-assistant: Claude Sonnet 4.6` (no email). `Co-Authored-By` is reserved for human developers only.

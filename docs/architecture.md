@@ -20,7 +20,7 @@ flowchart TD
     subgraph Scraper["Scraper Service — Python"]
         direction TB
         S1["1. Fetch URL"]
-        S2["2. Claude API"]
+        S2["2. Parse — local LLM, cloud escalation on failure"]
         S3["3. Validate"]
         S4["4. Store"]
         S5["5. Embed"]
@@ -38,9 +38,10 @@ flowchart TD
     subgraph AIService["AI Service — Python"]
         direction LR
         Ollama["Ollama (local) — embeddings — RAG responses — substitutions"]
-        Claude["Claude API (cloud) — recipe parsing — NL meal planner agent"]
+        Claude["Claude API (cloud) — NL meal planner agent"]
     end
 
+    Scraper -->|cloud escalation only| ClaudeParse["Claude API — recipe parse escalation"]
     Scraper -->|embed| Qdrant
 ```
 
@@ -65,8 +66,8 @@ A RabbitMQ consumer that processes recipe parsing jobs.
 Pipeline per job:
 1. Fetch raw HTML from URL (Playwright for JS-rendered pages, httpx for static)
 2. Extract main content (trafilatura for article extraction)
-3. Send extracted text to Claude API with a strict JSON schema → structured recipe
-4. Validate output with Guardrails AI (required fields, sane values)
+3. Send extracted text to a local LLM (Ollama `qwen2.5:14b`) with a strict JSON schema → structured recipe
+4. Validate output with Guardrails AI (required fields, sane values); retry once locally on failure, then escalate to `claude-haiku-4-5` (cloud) if it fails Guardrails a second time
 5. Write recipe + ingredients to PostgreSQL
 6. Generate embeddings via Ollama → write to Qdrant
 7. Update job status → notify API via Redis pub/sub → WebSocket push to client
@@ -77,7 +78,7 @@ Handles all LLM-powered features that require retrieval or multi-step reasoning.
 Features:
 - **Semantic search** (local): embed query via Ollama `nomic-embed-text` → Qdrant similarity search → return ranked recipes. No LLM generation step — results are returned directly.
 - **RAG pipeline** (local): retrieve top-k recipes from Qdrant → inject context into Ollama `qwen2.5:14b` → generate natural language response. Used for "what can I make tonight?" and open-ended queries.
-- **NL meal planner agent** (cloud): LangChain ReAct agent backed by `claude-haiku-4-5-20251001` with tools: `search_recipes`, `query_pantry`, `check_schedule`, `write_meal_plan`. Cloud required for reliable multi-step tool-calling.
+- **NL meal planner agent** (cloud): LangChain ReAct agent backed by `claude-haiku-4-5` with tools: `search_recipes`, `query_pantry`, `check_schedule`, `write_meal_plan`. Cloud required for reliable multi-step tool-calling.
 - **Ingredient substitution** (local): few-shot prompt to Ollama `qwen2.5:14b`. Context is small and bounded; local quality is sufficient.
 - **Shopping list consolidation** (algorithmic): unit conversion + quantity aggregation across recipes. No LLM required.
 
@@ -98,9 +99,9 @@ See `docs/adr/` for full reasoning. Summary:
 | Primary database | PostgreSQL | MongoDB — structured schema benefits outweigh flexibility |
 | Pantry tracking | Event sourcing | Simple CRUD — audit trail and replay are valuable |
 | Message broker | RabbitMQ | Kafka — simpler ops; Kafka overkill at this scale |
-| Recipe parsing | Claude API (LLM) | HTML scraper — too brittle across different site formats |
+| Recipe parsing | LLM, local-first (qwen2.5:14b) with cloud escalation (Haiku) | HTML scraper — too brittle across different site formats; cloud-only — unnecessary cost once Guardrails made local-first safe |
 | Embedding model | Ollama (local) | OpenAI Embeddings API — volume makes API cost add up |
-| LLM boundary | Cloud (Haiku) for recipe parsing + NL agent; local (qwen2.5:14b) for RAG responses + substitutions | All cloud — cost and latency; all local — unreliable tool-calling for the agent |
+| LLM boundary | Local (qwen2.5:14b) for recipe parsing + RAG responses + substitutions; cloud (Haiku) only for the NL agent, and as escalation when local recipe parsing fails validation twice | All cloud — cost and latency; all local — unreliable tool-calling for the agent |
 | Vector DB | Qdrant | Pinecone — self-hostable; no cloud dependency |
 | Search | Elasticsearch | PostgreSQL FTS — better faceting, fuzzy match, relevance tuning |
 | RAG framework | From scratch first, then LlamaIndex | LlamaIndex only — need to understand the pipeline before abstracting it |
@@ -117,9 +118,13 @@ flowchart TD
     E -->|async| F["Scraper picks up job"]
     F --> G["Fetch URL (Playwright if JS, httpx if static)"]
     G --> H["Extract main content via trafilatura"]
-    H --> I["Claude API — extract structured recipe (title, ingredients, steps, metadata)"]
+    H --> I["Local LLM qwen2.5:14b — extract structured recipe (title, ingredients, steps, metadata)"]
     I --> J["Guardrails AI — validate schema (required fields, quantity sanity)"]
-    J --> K["Write to PostgreSQL (recipe + recipe_ingredients + recipe_steps)"]
+    J -->|fail once — retry locally| I
+    J -->|fail twice — escalate| I2["Claude Haiku — extract structured recipe"]
+    I2 --> J2["Guardrails AI — validate schema"]
+    J -->|pass| K["Write to PostgreSQL (recipe + recipe_ingredients + recipe_steps)"]
+    J2 --> K
     K --> L["Generate embeddings via Ollama — upsert to Qdrant"]
     L --> M["Update job status = complete"]
     M --> N["Publish completion event to Redis pub/sub"]

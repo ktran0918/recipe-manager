@@ -240,19 +240,19 @@ Fetch raw HTML from any URL. Handle JS-rendered pages.
 
 ---
 
-### EP2-04: Claude API recipe parser
+### EP2-04: Local-first recipe parser
 **Depends on:** EP2-03 | **Parallel with:** EP2-01 (in progress)
 
-Send extracted article text to Claude with a strict JSON schema tool. Validate output with Guardrails AI.
+Send extracted article text to a local LLM (Ollama `qwen2.5:14b`) with a strict JSON schema. Validate output with Guardrails AI, retrying locally once on failure; escalate to Claude Haiku only if the local parse still fails Guardrails a second time. See `docs/adr/004-llm-recipe-parsing.md` for the full pipeline and rationale.
 
 **AC:**
-- [ ] `anthropic.messages.create` call with `model="claude-haiku-4-5-20251001"` and `tools=[recipe_extraction_tool]` (JSON schema matching `docs/schema.md` recipe structure); escalate to `claude-sonnet-4-6` only if Haiku fails Guardrails validation repeatedly on messy source HTML
-- [ ] Extraction schema includes an optional `substitutions` array: each entry has `original_ingredient_name`, `substitute_ingredient_name`, `conversion_ratio` (default 1.0), `notes` — Claude extracts these from recipe text (e.g. "you can use Greek yogurt instead of sour cream")
-- [ ] System prompt committed as a constant (not inline string)
+- [ ] `ollama.chat` call with `model="qwen2.5:14b"` and `format=recipe_extraction_schema` (JSON schema matching `docs/schema.md` recipe structure) — Ollama's schema-constrained decoding guarantees syntactically valid JSON
+- [ ] Extraction schema includes an optional `substitutions` array: each entry has `original_ingredient_name`, `substitute_ingredient_name`, `conversion_ratio` (default 1.0), `notes` — the model extracts these from recipe text (e.g. "you can use Greek yogurt instead of sour cream")
+- [ ] System prompt committed as a constant (not inline string), shared verbatim between the local call and the escalation call so both tiers are extracting against the same instructions
 - [ ] Guardrails AI validator: required fields present, `servings > 0`, `cook_time_minutes >= 0`, at least one ingredient, at least one step, all ingredient quantities parseable as numbers
-- [ ] On validation failure: retry Claude call once with a correction prompt; if still failing, raise `ParseError`
-- [ ] Updates `scrape_jobs.status=embedding` on success
-- [ ] Unit tests: fixture Claude tool response → parsed correctly into domain object; fixture with substitutions → substitution objects present; missing required field → `ParseError`; guard rails rejection on `servings=0`
+- [ ] On validation failure: retry the local call once with a correction prompt; if still failing, escalate to `anthropic.messages.create` with `model="claude-haiku-4-5"` and `tools=[recipe_extraction_tool]` (same JSON schema); if the escalated parse also fails Guardrails, raise `ParseError`
+- [ ] Updates `scrape_jobs.status=embedding` on success (from either tier)
+- [ ] Unit tests: fixture local-model response → parsed correctly into domain object; fixture with substitutions → substitution objects present; missing required field → triggers local retry; local retry also fails → triggers Haiku escalation with a fixture Haiku response that parses correctly; both tiers fail → `ParseError`; Guardrails rejection on `servings=0`
 
 ---
 
@@ -530,7 +530,7 @@ Refactor the from-scratch RAG pipeline to use LlamaIndex. Verify output matches.
 LangChain ReAct agent with four tools. Writes the meal plan via the API service.
 
 **AC:**
-- [ ] `POST /internal/meal-plan` (AI service): ReAct agent backed by `claude-haiku-4-5-20251001` with tools: `search_recipes(query, filters)`, `query_pantry()`, `check_schedule(week)`, `write_meal_plan(entries)` — `write_meal_plan` calls back to the Spring Boot API's internal meal plan endpoint
+- [ ] `POST /internal/meal-plan` (AI service): ReAct agent backed by `claude-haiku-4-5` with tools: `search_recipes(query, filters)`, `query_pantry()`, `check_schedule(week)`, `write_meal_plan(entries)` — `write_meal_plan` calls back to the Spring Boot API's internal meal plan endpoint
 - [ ] Agent loop capped at 10 steps; returns partial result + warning if cap hit
 - [ ] Guardrails validation on agent-produced entries before `write_meal_plan` executes: all `recipe_id` values exist, `planned_date` within requested week, no duplicate meal type per day
 - [ ] Structured logging: every agent step (thought, action, observation) logged at DEBUG level

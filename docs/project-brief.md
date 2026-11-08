@@ -79,8 +79,8 @@ Built as a learning and portfolio project. Goals: practice backend and AI/ML eng
 | Full-text search | Elasticsearch 8.13 | Faceted recipe search (occasion, complexity, cuisine, cook time) |
 | Vector DB | Qdrant | Semantic recipe search; Chroma locally for zero-config dev |
 | Embeddings | Ollama (`nomic-embed-text`) | Local — not cloud API; cost justified at household scale |
-| Local reasoning LLM | Ollama (`qwen2.5:14b`) | RAG response generation, ingredient substitution — bounded context tasks that don't need cloud |
-| Cloud LLM | Claude API — `claude-haiku-4-5-20251001` | Recipe parsing (~$0.006/URL) and NL meal planner agent (multi-step tool-calling requires cloud reliability) |
+| Local reasoning LLM | Ollama (`qwen2.5:14b`) | RAG response generation, ingredient substitution, and recipe parsing (primary) — bounded or Guardrails-gated tasks that don't need cloud by default |
+| Cloud LLM | Claude API — `claude-haiku-4-5` | NL meal planner agent (multi-step tool-calling requires cloud reliability); recipe parsing escalation (~$0.006/URL) only when the local parse fails Guardrails twice |
 | Containerization | Docker Compose | All infra + app services; production via docker-compose.prod.yml |
 
 The API/Python split is intentional: Java enforces OOP and DI discipline where it matters; Python has first-class support for the AI/ML tooling (official Anthropic SDK, LangChain, LlamaIndex). Services communicate over HTTP and RabbitMQ only — the languages are fully independent.
