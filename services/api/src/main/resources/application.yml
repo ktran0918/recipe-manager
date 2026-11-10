@@ -54,7 +54,12 @@ spring:
 
 # Custom JWT properties — injected via @ConfigurationProperties (equivalent to IOptions<T>)
 jwt:
-  secret: ${JWT_SECRET:dev-secret-must-be-at-least-256-bits-change-in-production}
+  # Must be valid Base64 — JwtService decodes it via Decoders.BASE64.decode() before signing.
+  # The old default here ("dev-secret-must-be...") contained hyphens, which aren't valid
+  # Base64 characters, so it threw IllegalArgumentException the first time any JWT was
+  # issued or validated. This default is just a Base64-encoded placeholder phrase (not real
+  # key material) long enough to clear the 256-bit minimum — always set JWT_SECRET in .env.
+  secret: ${JWT_SECRET:Tk9ULUEtUkVBTC1TRUNSRVQtU0VULUpXVC1TRUNSRVQtSU4tWU9VUi1FTlYtRklMRS0wMA==}
   access-expiry-minutes: ${JWT_ACCESS_EXPIRY_MINUTES:15}
   refresh-expiry-days: ${JWT_REFRESH_EXPIRY_DAYS:7}
 
