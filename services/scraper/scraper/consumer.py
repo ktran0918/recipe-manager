@@ -15,7 +15,7 @@ from scraper.fetcher import fetch_html
 from scraper.indexing import embed_recipe, index_elasticsearch_document, load_recipe_for_indexing, upsert_qdrant_point
 from scraper.logging_config import set_job_id
 from scraper.models import ScrapeJobMessage
-from scraper.notifications import publish_job_complete
+from scraper.notifications import publish_job_complete, publish_job_failed
 from scraper.recipe_parser import parse_recipe
 from scraper.recipe_writer import write_recipe
 
@@ -99,6 +99,7 @@ async def _handle_failure(
     else:
         logger.error("Scrape job failed after %s attempts, dead-lettering: %s", settings.max_scrape_retries, exc)
         await mark_failed(pool, job_id, str(exc))
+        await publish_job_failed(job_id, str(exc))
         await message.nack(requeue=False)
 
 

@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -98,6 +99,7 @@ class ScrapeJobIntegrationTest {
     @Autowired ScrapeJobRepository scrapeJobRepository;
     @Autowired RabbitTemplate rabbitTemplate;
     @Autowired ObjectMapper objectMapper;
+    @Autowired StringRedisTemplate stringRedisTemplate;
 
     private String accessToken;
     private UUID householdId;
@@ -142,6 +144,13 @@ class ScrapeJobIntegrationTest {
         assertThat(saved.get().getStatus()).isEqualTo("pending");
         assertThat(saved.get().getHouseholdId()).isEqualTo(householdId);
         assertThat(saved.get().getSourceUrl()).isEqualTo("https://example.com/garlic-pasta");
+
+        // ws_token was issued and actually stored in Redis (not just returned in the
+        // response) — this is what WsTokenHandshakeInterceptor will validate against
+        // when the client opens /ws/jobs/{jobId}.
+        String wsToken = response.getBody().wsToken();
+        assertThat(wsToken).isNotBlank();
+        assertThat(stringRedisTemplate.opsForValue().get("ws_token:" + jobId)).isEqualTo(wsToken);
 
         // Message actually landed on the scrape.jobs queue. receive() blocks up to the timeout —
         // the publish is synchronous but the broker needs a moment to route it.

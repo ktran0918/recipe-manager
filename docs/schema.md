@@ -274,6 +274,7 @@ CREATE TABLE scrape_jobs (
 | `recipe:scraped:{url_hash}` | String | 7d | Dedup: block re-scraping same URL |
 | `cost:{ingredient_id}:{unit}` | String | 6h | Cache ingredient cost lookups |
 | `job:status:{job_id}` | Hash | 1h | Scrape job status for polling fallback |
+| `ws_token:{job_id}` | String | 1h | Validates `WS /ws/jobs/:job_id` handshake — browsers can't send the JWT Bearer header on a WebSocket upgrade, so this is issued alongside `job_id` in the `POST /recipes/parse` response instead |
 | `pantry:snapshot:{household_id}` | Hash | 5m | Short-lived pantry state cache |
 | `cook:selection:{user_id}` | Hash | 24h | Currently selected recipe for cook mode (`recipe_id`, `selected_at`); cleared on deselect or expiry |
 

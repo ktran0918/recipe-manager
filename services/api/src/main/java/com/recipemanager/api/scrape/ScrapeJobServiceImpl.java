@@ -1,6 +1,7 @@
 package com.recipemanager.api.scrape;
 
 import com.recipemanager.api.config.RabbitMqConfig;
+import com.recipemanager.api.config.WsTokenService;
 import com.recipemanager.api.domain.ScrapeJob;
 import com.recipemanager.api.exception.ApiException;
 import com.recipemanager.api.repository.ScrapeJobRepository;
@@ -26,13 +27,16 @@ public class ScrapeJobServiceImpl implements ScrapeJobService {
     private final ScrapeJobRepository scrapeJobRepository;
     private final StringRedisTemplate stringRedisTemplate;
     private final RabbitTemplate rabbitTemplate;
+    private final WsTokenService wsTokenService;
 
     public ScrapeJobServiceImpl(ScrapeJobRepository scrapeJobRepository,
                                 StringRedisTemplate stringRedisTemplate,
-                                RabbitTemplate rabbitTemplate) {
+                                RabbitTemplate rabbitTemplate,
+                                WsTokenService wsTokenService) {
         this.scrapeJobRepository = scrapeJobRepository;
         this.stringRedisTemplate = stringRedisTemplate;
         this.rabbitTemplate = rabbitTemplate;
+        this.wsTokenService = wsTokenService;
     }
 
     @Override
@@ -52,7 +56,7 @@ public class ScrapeJobServiceImpl implements ScrapeJobService {
             Optional<ScrapeJob> existing = scrapeJobRepository.findById(UUID.fromString(existingJobId));
             if (existing.isPresent()) {
                 ScrapeJob j = existing.get();
-                return new ParseResponse(j.getId(), j.getStatus(), null);
+                return new ParseResponse(j.getId(), j.getStatus(), wsTokenService.issueToken(j.getId()));
             }
             // stale key — row was deleted after the dedup key was set; fall through and create a new job
         }
@@ -77,7 +81,7 @@ public class ScrapeJobServiceImpl implements ScrapeJobService {
         stringRedisTemplate.opsForValue().set(
                 dedupeKey, saved.getId().toString(), 7, TimeUnit.DAYS);
 
-        return new ParseResponse(saved.getId(), saved.getStatus(), null);
+        return new ParseResponse(saved.getId(), saved.getStatus(), wsTokenService.issueToken(saved.getId()));
     }
 
     @Override

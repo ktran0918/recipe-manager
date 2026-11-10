@@ -881,4 +881,92 @@ C# equivalent: the same "fetch by ID list, then re-order against the original ra
 
 ---
 
+## Raw Spring WebSocket — `@EnableWebSocket`, `WebSocketConfigurer`, `HandshakeInterceptor`
+
+Spring has two tiers of WebSocket support: STOMP-over-WebSocket (a full pub/sub messaging protocol, via `@EnableWebSocketMessageBroker`) and the raw tier used here (`@EnableWebSocket` + `WebSocketConfigurer`), which just gives you a bare socket and lets you decide the message format yourself. Raw is the right choice when the server only ever pushes one kind of one-directional event — reaching for STOMP's broker/destination model for that would be solving a problem this endpoint doesn't have.
+
+Registration is a `@Configuration` class implementing `WebSocketConfigurer`, analogous to `SecurityConfig`'s `SecurityFilterChain` bean — one method wires everything together:
+
+```java
+@Configuration
+@EnableWebSocket
+public class WebSocketConfig implements WebSocketConfigurer {
+    @Override
+    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+        registry.addHandler(jobStatusWebSocketHandler(), "/ws/jobs/*")
+                .addInterceptors(new WsTokenHandshakeInterceptor(wsTokenService));
+    }
+}
+```
+
+C# equivalent: `app.UseWebSockets()` plus a custom middleware mapped to a route — the ASP.NET Core equivalent of skipping SignalR's higher-level hub abstraction.
+
+**`HandshakeInterceptor`** runs once, before the HTTP connection upgrades to a WebSocket — the natural place to reject an invalid token, since rejecting here sends a normal HTTP error status rather than completing the upgrade and then closing the socket:
+
+```java
+public class WsTokenHandshakeInterceptor implements HandshakeInterceptor {
+    @Override
+    public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
+                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
+        // validate, then: attributes.put("jobId", jobId); return true;
+        // or: response.setStatusCode(HttpStatus.UNAUTHORIZED); return false;
+    }
+}
+```
+
+Returning `false` stops the handshake outright. Anything written into the `attributes` map survives into the session — `session.getAttributes()` in the handler reads it back. This is the raw-WebSocket equivalent of stashing a claim on `HttpContext.Items` in ASP.NET Core middleware so a later stage can read it.
+
+**Note:** a registered path like `/ws/jobs/*` is an Ant-style wildcard, not a URI template — unlike `@GetMapping("/jobs/{id}")`, there's no `@PathVariable`-style auto-binding here. Pull the job ID out of the raw request path yourself: `request.getURI().getPath()`, then split on `/`.
+
+**`TextWebSocketHandler`** is where the actual connection lifecycle lives — `afterConnectionEstablished` and `afterConnectionClosed` are the two methods that matter for a push-only endpoint:
+
+```java
+public class JobStatusWebSocketHandler extends TextWebSocketHandler {
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) {
+        UUID jobId = (UUID) session.getAttributes().get("jobId");
+        // subscribe to Redis here, forward messages via session.sendMessage(new TextMessage(...))
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        // unsubscribe — otherwise the Redis listener leaks past the client's disconnect
+    }
+}
+```
+
+C# equivalent: a SignalR Hub's `OnConnectedAsync`/`OnDisconnectedAsync`, minus the hub's own connection-group bookkeeping.
+
+---
+
+## Redis pub/sub — `RedisMessageListenerContainer`
+
+Every other Redis usage so far in this codebase is request/response — `opsForValue().get/set`, a GET or a SET. Pub/sub is a different shape entirely: a publisher (the Python scraper) fires a message with no idea who, if anyone, is listening, and a subscriber registers interest in a channel ahead of time to receive messages as they arrive.
+
+`RedisMessageListenerContainer` owns the subscription connection and thread pool — it's a singleton bean, not something you construct per WebSocket connection (that would spin up a redundant connection and thread pool for every client):
+
+```java
+@Bean
+public RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory factory) {
+    RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+    container.setConnectionFactory(factory);
+    return container;
+}
+```
+
+Subscribing is adding a listener to that shared container, scoped to one channel via `ChannelTopic`:
+
+```java
+MessageListener listener = (message, pattern) -> {
+    session.sendMessage(new TextMessage(new String(message.getBody())));
+};
+container.addMessageListener(listener, new ChannelTopic("job.status." + jobId));
+```
+
+`MessageListener` is a functional interface (`onMessage(Message message, byte[] pattern)`), so a lambda works. There's no "unsubscribe by session" API — only `removeMessageListener(listener, topic)` — so the listener instance itself has to be kept around (e.g. in a `Map<sessionId, MessageListener>`) to tear it down later in `afterConnectionClosed`.
+
+C# equivalent: `StackExchange.Redis`'s `ISubscriber.Subscribe(channel, handler)` / `Unsubscribe(channel)` — same publisher-doesn't-know-the-subscriber-exists model, same requirement to explicitly unsubscribe when a connection ends.
+
+---
+
 *This doc grows as new patterns appear during development.*

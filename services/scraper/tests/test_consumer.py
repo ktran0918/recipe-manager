@@ -243,10 +243,13 @@ async def test_handle_message_exhausted_retries_marks_failed_and_deadletters(mon
 
     monkeypatch.setattr("scraper.consumer.mark_scraping", AsyncMock(side_effect=RuntimeError("db down")))
     mark_failed = AsyncMock()
+    publish_job_failed = AsyncMock()
     monkeypatch.setattr("scraper.consumer.mark_failed", mark_failed)
+    monkeypatch.setattr("scraper.consumer.publish_job_failed", publish_job_failed)
 
     await handle_message(channel, message, pool, AsyncMock(), AsyncMock())
 
     mark_failed.assert_awaited_once_with(pool, job_id, "db down")
+    publish_job_failed.assert_awaited_once_with(job_id, "db down")
     message.nack.assert_awaited_once_with(requeue=False)
     channel.default_exchange.publish.assert_not_called()

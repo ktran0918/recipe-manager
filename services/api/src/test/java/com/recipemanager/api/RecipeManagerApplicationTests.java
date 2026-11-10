@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -47,6 +48,10 @@ class RecipeManagerApplicationTests {
     // so these infrastructure beans need the same treatment.
     @MockBean private StringRedisTemplate stringRedisTemplate;
     @MockBean private RabbitTemplate rabbitTemplate;
+
+    // WebSocketConfig's RedisMessageListenerContainer bean needs a RedisConnectionFactory,
+    // which RedisAutoConfiguration would normally provide — excluded here same as above.
+    @MockBean private RedisConnectionFactory redisConnectionFactory;
 
     @Test
     void contextLoads() {

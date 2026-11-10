@@ -296,8 +296,8 @@ Spring Boot WebSocket endpoint. Subscribes to Redis pub/sub and pushes status ev
 - [ ] `WS /ws/jobs/:job_id`: client connects with `ws_token` (validated against Redis); server subscribes to `job.status.{job_id}` Redis channel
 - [ ] Every Redis pub/sub message is forwarded to the WebSocket client as JSON
 - [ ] Connection closed by server on `complete` or `failed` status
-- [ ] `ws_token` expires after 1 hour (Redis TTL)
-- [ ] Fallback: `GET /recipes/jobs/:job_id` polling still works independently
+- [x] `ws_token` expires after 1 hour (Redis TTL)
+- [x] Fallback: `GET /recipes/jobs/:job_id` polling still works independently
 - [ ] Integration test: mock Redis pub/sub publish → client receives correct WebSocket message
 
 ---

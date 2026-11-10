@@ -1,5 +1,7 @@
 package com.recipemanager.api.scrape;
 
+import com.recipemanager.api.config.RabbitMqConfig;
+import com.recipemanager.api.config.WsTokenService;
 import com.recipemanager.api.domain.ScrapeJob;
 import com.recipemanager.api.repository.ScrapeJobRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +28,7 @@ class ScrapeJobServiceTest {
     @Mock private StringRedisTemplate stringRedisTemplate;
     @Mock private ValueOperations<String, String> valueOps;
     @Mock private RabbitTemplate rabbitTemplate;
+    @Mock private WsTokenService wsTokenService;
 
     private ScrapeJobServiceImpl service;
 
@@ -36,7 +39,7 @@ class ScrapeJobServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ScrapeJobServiceImpl(scrapeJobRepository, stringRedisTemplate, rabbitTemplate);
+        service = new ScrapeJobServiceImpl(scrapeJobRepository, stringRedisTemplate, rabbitTemplate, wsTokenService);
     }
 
     @Test
@@ -46,6 +49,7 @@ class ScrapeJobServiceTest {
         // Arrange: prime the Redis mock so the dedup key is "already set" with EXISTING_JOB's ID.
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.get(anyString())).thenReturn(EXISTING_JOB.toString());
+        when(wsTokenService.issueToken(EXISTING_JOB)).thenReturn("fake-ws-token");
 
         // ScrapeJob.id is @GeneratedValue with no public setter — ReflectionTestUtils
         // bypasses that so the mock entity can carry a known id for assertions.
@@ -60,8 +64,30 @@ class ScrapeJobServiceTest {
         // Assert:
         assertThat(response.jobId()).isEqualTo(EXISTING_JOB);
         assertThat(response.status()).isEqualTo("complete");
+        assertThat(response.wsToken()).isEqualTo("fake-ws-token");
         verify(scrapeJobRepository, never()).save(any());    // no new job created
         verify(rabbitTemplate, never())
                 .convertAndSend(anyString(), anyString(), any(ScrapeJobMessage.class)); // not re-published
+    }
+
+    @Test
+    void submitParse_newUrl_createsJobAndIssuesWsToken() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null); // no dedup hit
+
+        UUID newJobId = UUID.randomUUID();
+        when(scrapeJobRepository.save(any(ScrapeJob.class))).thenAnswer(invocation -> {
+            ScrapeJob saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", newJobId);
+            return saved;
+        });
+        when(wsTokenService.issueToken(newJobId)).thenReturn("new-ws-token");
+
+        ParseResponse response = service.submitParse(HOUSEHOLD_ID, USER_ID, RECIPE_URL);
+
+        assertThat(response.jobId()).isEqualTo(newJobId);
+        assertThat(response.status()).isEqualTo("pending");
+        assertThat(response.wsToken()).isEqualTo("new-ws-token");
+        verify(rabbitTemplate).convertAndSend(eq(""), eq(RabbitMqConfig.QUEUE_NAME), any(ScrapeJobMessage.class));
     }
 }

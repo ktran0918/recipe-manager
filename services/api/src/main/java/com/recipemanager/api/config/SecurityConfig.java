@@ -38,6 +38,11 @@ public class SecurityConfig {
                 // Only the pre-authentication endpoints are public. /auth/me requires a
                 // valid JWT, so it must NOT be matched by this wildcard.
                 .requestMatchers("/auth/google", "/auth/google/callback", "/auth/refresh", "/auth/logout").permitAll()
+                // The WebSocket handshake carries no Authorization header — browsers' native
+                // WebSocket API can't set custom headers on it. WsTokenHandshakeInterceptor
+                // validates the ws_token query param instead; JwtAuthFilter has nothing to
+                // check here and would otherwise reject the handshake as unauthenticated.
+                .requestMatchers("/ws/**").permitAll()
                 .anyRequest().authenticated()
             )
             // Insert JwtAuthFilter before Spring's UsernamePasswordAuthenticationFilter.
