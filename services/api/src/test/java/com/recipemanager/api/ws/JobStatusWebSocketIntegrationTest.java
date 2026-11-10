@@ -44,11 +44,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 // to Redis exactly the way the scraper publishes it, and the test asserts the client receives
 // it and the server closes the connection afterward.
 //
-// This test is RED until WsTokenHandshakeInterceptor.beforeHandshake and
-// JobStatusWebSocketHandler.afterConnectionEstablished/afterConnectionClosed are implemented —
-// see the TODOs in those classes. That's expected: this is the target to make pass, not a
-// test of already-working code.
-//
 // C# equivalent: TestServer + a raw ClientWebSocket connecting to a SignalR-free WebSocket
 // endpoint, then publishing through StackExchange.Redis and asserting the client's receive
 // loop got the message.
@@ -147,9 +142,18 @@ class JobStatusWebSocketIntegrationTest {
             // Simulate exactly what the scraper publishes on completion (see
             // scraper/notifications.py publish_job_complete) — same channel, same JSON shape.
             String payload = "{\"status\":\"complete\",\"recipe_id\":\"" + UUID.randomUUID() + "\"}";
-            stringRedisTemplate.convertAndSend("job.status." + jobId, payload);
 
-            String message = received.poll(5, TimeUnit.SECONDS);
+            // RedisMessageListenerContainer.addMessageListener() schedules the actual Redis
+            // SUBSCRIBE on a background task and returns before it necessarily completes — a
+            // real race only visible in a test that publishes immediately after connecting.
+            // In production this never matters: the scraper always publishes well after a
+            // client connects, since it has to fetch/parse/embed first. Retrying the publish
+            // a few times bridges that subscription delay without a blind, flaky sleep.
+            String message = null;
+            for (int attempt = 0; attempt < 5 && message == null; attempt++) {
+                stringRedisTemplate.convertAndSend("job.status." + jobId, payload);
+                message = received.poll(1, TimeUnit.SECONDS);
+            }
             assertThat(message).isEqualTo(payload);
 
             // The server closes the connection itself once it forwards a terminal status —

@@ -908,8 +908,16 @@ public class WsTokenHandshakeInterceptor implements HandshakeInterceptor {
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                     WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        // validate, then: attributes.put("jobId", jobId); return true;
-        // or: response.setStatusCode(HttpStatus.UNAUTHORIZED); return false;
+        String path = request.getURI().getPath();
+        String token = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams().getFirst("token");
+        UUID jobId = UUID.fromString(path.substring(path.lastIndexOf('/') + 1));
+
+        if (!wsTokenService.isValid(jobId, token)) {
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            return false;
+        }
+        attributes.put("jobId", jobId);
+        return true;
     }
 }
 ```
@@ -925,12 +933,18 @@ public class JobStatusWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         UUID jobId = (UUID) session.getAttributes().get("jobId");
-        // subscribe to Redis here, forward messages via session.sendMessage(new TextMessage(...))
+        MessageListener listener = (message, pattern) -> forwardToClient(session, message);
+        listenersBySessionId.put(session.getId(), listener);
+        listenerContainer.addMessageListener(listener, new ChannelTopic("job.status." + jobId));
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         // unsubscribe — otherwise the Redis listener leaks past the client's disconnect
+        MessageListener listener = listenersBySessionId.remove(session.getId());
+        if (listener != null) {
+            listenerContainer.removeMessageListener(listener);
+        }
     }
 }
 ```

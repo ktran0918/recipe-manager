@@ -1,14 +1,21 @@
 package com.recipemanager.api.ws;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
+import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 // Bridges Redis pub/sub (where the scraper publishes job status updates) to this specific
@@ -18,6 +25,8 @@ import java.util.concurrent.ConcurrentHashMap;
 // C# equivalent: a SignalR Hub whose OnConnectedAsync subscribes to a Redis channel (via
 // StackExchange.Redis's ISubscriber) and forwards messages to Clients.Caller.SendAsync(...).
 public class JobStatusWebSocketHandler extends TextWebSocketHandler {
+
+    private static final Set<String> TERMINAL_STATUSES = Set.of("complete", "failed");
 
     private final RedisMessageListenerContainer listenerContainer;
     private final ObjectMapper objectMapper;
@@ -33,40 +42,58 @@ public class JobStatusWebSocketHandler extends TextWebSocketHandler {
         this.objectMapper = objectMapper;
     }
 
-    // TODO: Subscribe to this job's Redis channel and forward every message to the client.
-    //
-    // 1. Read the jobId stashed by WsTokenHandshakeInterceptor:
-    //      UUID jobId = (UUID) session.getAttributes().get("jobId");
-    //
-    // 2. Build a MessageListener — a functional interface with one method,
-    //    onMessage(Message message, byte[] pattern) — that:
-    //      - forwards the raw payload to the client:
-    //          session.sendMessage(new TextMessage(new String(message.getBody())));
-    //      - parses it (e.g. via objectMapper.readTree(message.getBody())) to check the
-    //        "status" field — if it's "complete" or "failed", close the session
-    //        (session.close()) and call listenerContainer.removeMessageListener(listener)
-    //        so this subscription doesn't keep running after the job is done.
-    //
-    // 3. Register it on the shared container:
-    //      listenerContainer.addMessageListener(listener, new ChannelTopic("job.status." + jobId));
-    //    (ChannelTopic is org.springframework.data.redis.listener.ChannelTopic — a plain
-    //    pub/sub channel subscription, not a pattern match.)
-    //
-    // 4. Store the listener in listenersBySessionId keyed by session.getId(), so
-    //    afterConnectionClosed can clean it up if the client disconnects before a terminal
-    //    status arrives.
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {
-        // intentionally left for the TODO above
+        UUID jobId = (UUID) session.getAttributes().get("jobId");
+        ChannelTopic topic = new ChannelTopic("job.status." + jobId);
+
+        MessageListener listener = (message, pattern) -> handleRedisMessage(session, message);
+        listenersBySessionId.put(session.getId(), listener);
+        listenerContainer.addMessageListener(listener, topic);
     }
 
-    // TODO: Unsubscribe the listener for this session if the client disconnects early —
-    // e.g. closes the browser tab before the job reaches a terminal status. Look up
-    // listenersBySessionId.remove(session.getId()) and, if present, call
-    // listenerContainer.removeMessageListener(listener). Skipping this leaks a live Redis
-    // subscription for a connection nobody is listening on anymore.
+    private void handleRedisMessage(WebSocketSession session, Message message) {
+        String body = new String(message.getBody(), StandardCharsets.UTF_8);
+        try {
+            session.sendMessage(new TextMessage(body));
+        } catch (IOException e) {
+            // The client may have disconnected between the publish and this delivery attempt —
+            // nothing more to do than skip this message; afterConnectionClosed handles cleanup.
+            return;
+        }
+
+        if (isTerminalStatus(body)) {
+            unsubscribe(session.getId());
+            try {
+                session.close(CloseStatus.NORMAL);
+            } catch (IOException e) {
+                // Already closing/closed — nothing actionable.
+            }
+        }
+    }
+
+    private boolean isTerminalStatus(String body) {
+        try {
+            JsonNode node = objectMapper.readTree(body);
+            return TERMINAL_STATUSES.contains(node.path("status").asText());
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    // Unsubscribes the listener for this session if the client disconnects early — e.g.
+    // closes the browser tab before the job reaches a terminal status. Without this, the
+    // listener keeps running forever, leaking a subscription for a connection nobody is
+    // listening on anymore.
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        // intentionally left for the TODO above
+        unsubscribe(session.getId());
+    }
+
+    private void unsubscribe(String sessionId) {
+        MessageListener listener = listenersBySessionId.remove(sessionId);
+        if (listener != null) {
+            listenerContainer.removeMessageListener(listener);
+        }
     }
 }

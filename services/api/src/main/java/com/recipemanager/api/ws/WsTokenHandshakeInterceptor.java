@@ -1,12 +1,15 @@
 package com.recipemanager.api.ws;
 
 import com.recipemanager.api.config.WsTokenService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Map;
+import java.util.UUID;
 
 // Runs once, before the HTTP connection upgrades to a WebSocket. This is the right place to
 // reject an invalid/missing ws_token — rejecting here sends a normal HTTP error status;
@@ -22,37 +25,32 @@ public class WsTokenHandshakeInterceptor implements HandshakeInterceptor {
         this.wsTokenService = wsTokenService;
     }
 
-    // TODO: Validate the ws_token before allowing the handshake to proceed.
-    //
-    // 1. The job_id arrives as the last path segment — WebSocketConfig registers this
-    //    handler at the wildcard pattern "/ws/jobs/*", not a URI template like
-    //    "/ws/jobs/{jobId}", so there's no @PathVariable-style binding here. Pull it from
-    //    the raw request path instead:
-    //
-    //      String path = request.getURI().getPath();
-    //      UUID jobId = UUID.fromString(path.substring(path.lastIndexOf('/') + 1));
-    //
-    // 2. The token arrives as a query parameter, not a header — browsers' native
-    //    WebSocket API cannot set custom headers on the handshake request, which is
-    //    exactly why ws_token exists as a separate mechanism from the JWT Bearer token
-    //    every other endpoint uses. UriComponentsBuilder can parse it out of the query
-    //    string on request.getURI():
-    //
-    //      String token = UriComponentsBuilder.fromUri(request.getURI())
-    //              .build().getQueryParams().getFirst("token");
-    //
-    // 3. Call wsTokenService.isValid(jobId, token). If invalid (or the path/token is
-    //    malformed), set response.setStatusCode(HttpStatus.UNAUTHORIZED) and return false
-    //    — returning false here stops the handshake before the socket ever upgrades.
-    //
-    // 4. If valid, stash jobId in `attributes` (the Map parameter) under a key such as
-    //    "jobId". This is how data survives from the interceptor into the handler's
-    //    session — JobStatusWebSocketHandler reads it back via session.getAttributes().
-    //    Return true to let the handshake proceed.
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                     WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        return false;
+        // WebSocketConfig registers this handler at the wildcard pattern "/ws/jobs/*", not a
+        // URI template like "/ws/jobs/{jobId}", so there's no @PathVariable-style binding
+        // here — the job id has to be pulled out of the raw request path instead.
+        String path = request.getURI().getPath();
+        String token = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams().getFirst("token");
+
+        UUID jobId;
+        try {
+            jobId = UUID.fromString(path.substring(path.lastIndexOf('/') + 1));
+        } catch (IllegalArgumentException e) {
+            response.setStatusCode(HttpStatus.BAD_REQUEST);
+            return false;
+        }
+
+        if (!wsTokenService.isValid(jobId, token)) {
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            return false;
+        }
+
+        // Data stashed here survives into the WebSocket session — JobStatusWebSocketHandler
+        // reads it back via session.getAttributes().
+        attributes.put("jobId", jobId);
+        return true;
     }
 
     @Override
